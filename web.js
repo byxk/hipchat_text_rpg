@@ -19,7 +19,7 @@ addon.webhook('room_message',/.*/i , function *() {
   if (alreadyattacking) {
     return;
   }
-  var doweatk = (Math.floor(Math.random() * 20) + 1)
+  var doweatk = (Math.floor(Math.random() * 40) + 1)
   attackdmg = (Math.floor(Math.random() * 20) + 1)
   hp = (Math.floor(Math.random() * 20) + 1)  
   
