@@ -27,8 +27,11 @@ addon.webhook('room_message',/.*/i , function *() {
 	alreadyattacking = true;
     underattack = this.sender.name;
 	return yield this.roomClient.sendNotification("Quickly " + this.sender.name + ", the globin is going after you! Roll a 1d20 and defeat it. You must beat a " + hp);
-  }
-	  
+  }else if (parseInt(doweatk) == 12){
+	alreadyattacking = true;
+    underattack = this.sender.name;
+	return yield this.roomClient.sendNotification("Oh no " + this.sender.name + ", the poring is blobbing after you! Roll a 1d20 and defeat it. You must beat a " + hp);
+  }  
 });
 addon.webhook('room_message',/^\/stats/i , function *() {
   if (dict.getVal(this.sender.name) == "Key not found!"){
