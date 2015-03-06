@@ -6,6 +6,7 @@ var underattack = "";
 var hp = 0;
 var alreadyrolling = "";
 var dict = new JSdict();
+var attackdmg = 0;
 var addon = app.addon()
   .hipchat()
   .allowRoom(true)
@@ -19,7 +20,9 @@ addon.webhook('room_message',/.*/i , function *() {
     return;
   }
   var doweatk = (Math.floor(Math.random() * 20) + 1)
+  attackdmg = (Math.floor(Math.random() * 20) + 1)
   hp = (Math.floor(Math.random() * 20) + 1)  
+  
   if (parseInt(doweatk) == 4){
 	alreadyattacking = true;
     underattack = this.sender.name;
@@ -70,11 +73,20 @@ addon.webhook('room_message',/^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9]
     yield this.roomClient.sendNotification(this.sender.name + ' rolled a ' + numofdice + 'd'+ numofsides + ' ...... [ ' + totalString +'] = ' + total.toString() );
     if ((this.sender.name == underattack) && (this.match[1] == "1") && (this.match[2] == "20")){
 	  if (total > hp) {
-		yield this.roomClient.sendNotification(this.sender.name + ' defeated the monster!')
-		underattack = ""
+		yield this.roomClient.sendNotification(this.sender.name + ' defeated the monster!');
+		yield this.roomClient.sendNotification(this.sender.name + ' gained back ' + Math.floor(attackdmg / 2) + " hp!");
+		dict.update(this.sender.name, (parseInt(dict.getVal(this.sender.name)) + Math.floor(attackdmg / 2)).toString());
+		underattack = "";
 		alreadyattacking = false;
 	  } else{
-		yield this.roomClient.sendNotification(this.sender.name + ' died...')
+		yield this.roomClient.sendNotification(this.sender.name + ' lost ' + attackdmg + ' hp!');
+		if (parseInt((dict.getVal(this.sender.name)) - attackdmg) <=0) {
+		  yield this.roomClient.sendNotification(this.sender.name + ' has died.');
+		}else{
+		  dict.update(this.sender.name, (parseInt((dict.getVal(this.sender.name)) - attackdmg)).toString());
+		}
+		
+		
 		underattack = ""
 		alreadyattacking = false;
 	  }
