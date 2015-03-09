@@ -1,6 +1,7 @@
 // data: [ARRAY[HP,PRAYERPOINTS,PRAYERMODIFIER],ARRAY[ITEMS],ARRAY[ARMOUR]]
 var ack = require('ac-koa').require('hipchat');
 var pkg = require('./package.json');
+var fs = require('fs');
 var app = ack(pkg);
 var alreadyattacking = false;
 var underattack = "";
@@ -23,11 +24,11 @@ addon.webhook('room_message',/.*/i , function *() {
   if (alreadyattacking) {
     return;
   }
-  
+ 
   var doweatk = (Math.floor(Math.random() * 40) + 1)
   attackdmg = (Math.floor(Math.random() * 20) + 1)
   hp = (Math.floor(Math.random() * 19) + 1)  
-  chanceOfFaith = ((Math.floor(Math.random() * 10) + 1) == 2);
+  chanceOfFaith = ((Math.floor(Math.random() * 5) + 1) == 2);
   if (parseInt(doweatk) == 4){
 	alreadyattacking = true;
     underattack = this.sender.name;
@@ -46,29 +47,27 @@ addon.webhook('room_message',/^\/stats/i , function *() {
   stats = mainArray[0];
   
   yield this.roomClient.sendNotification(this.sender.name + "'s hp: " + stats[0].toString());
-  yield this.roomClient.sendNotification(this.sender.name + "'s faith: " + stats[1].toString());
-  yield this.roomClient.sendNotification(this.sender.name + "'s prayer modifier: " + stats[2].toString());
+  yield this.roomClient.sendNotification(this.sender.name + "'s pepper: " + stats[1].toString());
+  yield this.roomClient.sendNotification(this.sender.name + "'s seasoning modifier: " + stats[2].toString());
   stats_process = false;
 });
 
-addon.webhook('room_message',/^\/pray/i , function *() {
+addon.webhook('room_message',/^\/pepper/i , function *() {
   if (prayer_process){
 	return;
   }
+  saveData(dict);
   prayer_process = true;
   initPlayer(this.sender.name);
   mainArray = dict.getVal(this.sender.name);
   stats = mainArray[0];
   if (stats[1] <= 0){
-    yield this.roomClient.sendNotification(this.sender.name + " does not have enough faith to pray.");
+    yield this.roomClient.sendNotification(this.sender.name + " does not have enough pepper to season.");
   }else{
-    var prayermod = (Math.floor(Math.random() * 5) + 1);
+    var prayermod = (Math.floor(Math.random() * 5));
 	stats[1] = stats[1] - 1
 	stats[2] = stats[2] + prayermod;
-	yield this.roomClient.sendNotification(this.sender.name + " starts praying.");
-	yield this.roomClient.sendNotification(this.sender.name + " has " + (stats[1]).toString() + " faith." );
-	yield this.roomClient.sendNotification(this.sender.name + " successfully prayed for +" + prayermod.toString() + " modifier on next roll.");
-	yield this.roomClient.sendNotification(this.sender.name + " has a total of +" + stats[2].toString() + " prayer modifier on next roll.");
+	yield this.roomClient.sendNotification(this.sender.name + " successfully seasoned for +" + prayermod.toString() + " modifier on next roll.");
   }
   prayer_process = false;
   
@@ -77,6 +76,7 @@ addon.webhook('room_message',/^\/pray/i , function *() {
 addon.webhook('room_message',/^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9]+))?/i , function *() {
   initPlayer(this.sender.name);
   if (this.sender.name == alreadyrolling) return;
+  saveData(dict);
   alreadyrolling = this.sender.name;
   var numofvars = this.match;
   var numofdice = this.match[1];
@@ -109,9 +109,9 @@ addon.webhook('room_message',/^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9]
 	if (this.sender.name == underattack){
 	  mainArray = dict.getVal(this.sender.name);
 	  stats = mainArray[0]
-	  total = total + stats[2];
-	  stats[2] = 0;
+	  total = total + stats[2].toString();
 	  yield this.roomClient.sendNotification(this.sender.name + ' rolled a ' + numofdice + 'd'+ numofsides + '+ prayer modifier: ' +stats[2].toString() +' ...... [ ' + totalString +'] = ' + total.toString() );
+	  stats[2] = 0;
 	}else{		
       yield this.roomClient.sendNotification(this.sender.name + ' rolled a ' + numofdice + 'd'+ numofsides + ' ...... [ ' + totalString +'] = ' + total.toString() );
 	}
@@ -123,7 +123,7 @@ addon.webhook('room_message',/^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9]
 		stats[0] = parseInt(stats[0]) + Math.floor(attackdmg / 2);
 		if (chanceOfFaith){
 		  chanceOfFaith = false;
-		  yield this.roomClient.sendNotification('The monster dropped some faith! ' + this.sender.name + ' gained 1 faith.');
+		  yield this.roomClient.sendNotification('The monster dropped some pepper! ' + this.sender.name + ' gained 1 faith.');
 		  stats[1] = stats[1] + 1;
 		}
 		mainArray = dict.getVal(this.sender.name);
@@ -133,7 +133,7 @@ addon.webhook('room_message',/^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9]
 	  } else{
 		yield this.roomClient.sendNotification(this.sender.name + ' lost ' + attackdmg + ' hp!');
 		stats = dict.getVal(this.sender.name)[0][0];
-		stats[0] = parseint(stats[0]) - attackdmg
+		stats[0] = parseInt(stats[0]) - attackdmg
 		mainArray = dict.getVal(this.sender.name);
 		mainArray[0] = stats;
 		dict.update(this.sender.name, mainArray);		
@@ -147,8 +147,6 @@ addon.webhook('room_message',/^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9]
     yield this.roomClient.sendNotification(this.sender.name + ' rolled a dice with ' + this.match[1] + ' sides ...... [' + (Math.floor(Math.random() * parseInt(this.match[1])) + 1)+']' );
 
   }
-  
-  sleep(3000)
   alreadyrolling = "";
 });
 
@@ -163,6 +161,26 @@ function initPlayer(playername){
   if (dict.getVal(playername) == "Key not found!"){
 	dict.add(playername, mainArray);
   }
+}
+function saveData(file){
+	var str = JSON.stringify(file);
+	fs.writeFile("data", str, function(err) {
+    if(err) {
+        console.log(err);
+    } else {
+        console.log("The file was saved!");
+    }
+	}); 
+}
+function loadData(){
+	var thedata = "";
+	fs.readFile(__dirname + "data", function(error, data) {
+      console.log(error);
+	  console.log(data);
+      thedata = data;
+	});
+	var obj = JSON.parse(thedata);
+	dict = obj;
 }
 function JSdict() {
     this.Keys = [];
@@ -269,4 +287,5 @@ if (!JSdict.prototype.remove) {
         }
     }
 }
+//loadData();
 app.listen();
