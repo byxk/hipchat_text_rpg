@@ -24,16 +24,17 @@ addon.webhook('room_message',/.*/i , function *() {
   if (alreadyattacking) {
     return;
   }
- 
-  var doweatk = (Math.floor(Math.random() * 40) + 1)
+  var doweatk = (Math.floor(Math.random() * 20) + 1)
   attackdmg = (Math.floor(Math.random() * 20) + 1)
   hp = (Math.floor(Math.random() * 19) + 1)  
   chanceOfFaith = ((Math.floor(Math.random() * 5) + 1) == 2);
   if (parseInt(doweatk) == 4){
+	initPlayer(this.sender.name);
 	alreadyattacking = true;
     underattack = this.sender.name;
 	return yield this.roomClient.sendNotification("Quickly " + this.sender.name + ", the globin is going after you! Roll a 1d20 and defeat it. You must beat a " + hp);
   }else if (parseInt(doweatk) == 12){
+	initPlayer(this.sender.name);
 	alreadyattacking = true;
     underattack = this.sender.name;
 	return yield this.roomClient.sendNotification("Oh no " + this.sender.name + ", the poring is blobbing after you! Roll a 1d20 and defeat it. You must beat a " + hp);
@@ -66,7 +67,7 @@ addon.webhook('room_message',/^\/pepper/i , function *() {
   }else{
     var prayermod = (Math.floor(Math.random() * 5));
 	stats[1] = stats[1] - 1
-	stats[2] = stats[2] + prayermod;
+	stats[2] = parseInt(stats[2] + prayermod);
 	yield this.roomClient.sendNotification(this.sender.name + " successfully seasoned for +" + prayermod.toString() + " modifier on next roll.");
   }
   prayer_process = false;
@@ -109,8 +110,8 @@ addon.webhook('room_message',/^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9]
 	if (this.sender.name == underattack){
 	  mainArray = dict.getVal(this.sender.name);
 	  stats = mainArray[0]
-	  total = total + stats[2].toString();
-	  yield this.roomClient.sendNotification(this.sender.name + ' rolled a ' + numofdice + 'd'+ numofsides + '+ prayer modifier: ' +stats[2].toString() +' ...... [ ' + totalString +'] = ' + total.toString() );
+	  total = total + stats[2];
+	  yield this.roomClient.sendNotification(this.sender.name + ' rolled a ' + numofdice + 'd'+ numofsides + '+ seasoning modifier: ' +stats[2].toString() +' ...... [ ' + totalString +'] = ' + total.toString() );
 	  stats[2] = 0;
 	}else{		
       yield this.roomClient.sendNotification(this.sender.name + ' rolled a ' + numofdice + 'd'+ numofsides + ' ...... [ ' + totalString +'] = ' + total.toString() );
@@ -119,24 +120,26 @@ addon.webhook('room_message',/^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9]
 	  if (total > hp) {
 		yield this.roomClient.sendNotification(this.sender.name + ' defeated the monster!');
 		yield this.roomClient.sendNotification(this.sender.name + ' gained back ' + Math.floor(attackdmg / 2) + " hp!");
-		stats = dict.getVal(this.sender.name)[0][0];
+		stats = dict.getVal(this.sender.name)[0];
 		stats[0] = parseInt(stats[0]) + Math.floor(attackdmg / 2);
 		if (chanceOfFaith){
 		  chanceOfFaith = false;
-		  yield this.roomClient.sendNotification('The monster dropped some pepper! ' + this.sender.name + ' gained 1 faith.');
+		  yield this.roomClient.sendNotification('The monster dropped some pepper! ' + this.sender.name + ' gained 1 pepper.');
 		  stats[1] = stats[1] + 1;
 		}
 		mainArray = dict.getVal(this.sender.name);
 		mainArray[0] = stats;
 		dict.update(this.sender.name, mainArray);
+		console.log("MAIN ARRAY: " + mainArray.toString());
 		alreadyattacking = false;
 	  } else{
 		yield this.roomClient.sendNotification(this.sender.name + ' lost ' + attackdmg + ' hp!');
-		stats = dict.getVal(this.sender.name)[0][0];
-		stats[0] = parseInt(stats[0]) - attackdmg
+		stats = dict.getVal(this.sender.name)[0];
+		stats[0] = parseInt(stats[0]) - parseInt(attackdmg);
 		mainArray = dict.getVal(this.sender.name);
 		mainArray[0] = stats;
-		dict.update(this.sender.name, mainArray);		
+		dict.update(this.sender.name, mainArray);
+		console.log("MAIN ARRAY: " + mainArray.toString());		
 		underattack = ""
 		alreadyattacking = false;
 	  }
@@ -155,10 +158,11 @@ function sleep(milliSeconds){
   while (new Date().getTime() < startTime + milliSeconds); // hog cpu
 }
 function initPlayer(playername){
-  stats = [100, 1,0];
+  stats = [100, 1,0,0,0,0];
   inventory = [""];
   mainArray = [stats,inventory];
   if (dict.getVal(playername) == "Key not found!"){
+	console.log("Creating Player: " + playername);
 	dict.add(playername, mainArray);
   }
 }
