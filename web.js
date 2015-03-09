@@ -11,6 +11,7 @@ var dict = new JSdict();
 var attackdmg = 0;
 var chanceOfFaith = false;
 var prayer_process = false;
+var inventory_process = false;
 var stats_process = false;
 var addon = app.addon()
   .hipchat()
@@ -51,6 +52,16 @@ addon.webhook('room_message',/^\/stats/i , function *() {
   yield this.roomClient.sendNotification(this.sender.name + "'s pepper: " + stats[1].toString());
   yield this.roomClient.sendNotification(this.sender.name + "'s seasoning modifier: " + stats[2].toString());
   stats_process = false;
+});
+
+addon.webhook('room_message',/^\/inventory/i , function *() {
+  if (inventory_process) return;
+  inventory_process = true;
+  initPlayer(this.sender.name);
+  mainArray = dict.getVal(this.sender.name);
+  inventory = mainArray[1];
+  yield this.roomClient.sendNotification(this.sender.name + "'s inventory: " + inventory.toString());
+  inventory_process = false;
 });
 
 addon.webhook('room_message',/^\/pepper/i , function *() {
@@ -159,7 +170,7 @@ function sleep(milliSeconds){
 }
 function initPlayer(playername){
   stats = [100, 1,0,0,0,0];
-  inventory = [""];
+  inventory = ["Sealed rusty pickaxe","",""];
   mainArray = [stats,inventory];
   if (dict.getVal(playername) == "Key not found!"){
 	console.log("Creating Player: " + playername);
