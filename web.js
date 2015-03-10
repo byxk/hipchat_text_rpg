@@ -1,4 +1,4 @@
-// data: [ARRAY[HP,PRAYERPOINTS,PRAYERMODIFIER,EXP, LEVEL],ARRAY[ITEMS],ARRAY[ARMOUR]]
+// data: [ARRAY[HP,PEPPERPOINTS,SEASONINGMOD,EXP, LEVEL],ARRAY[ITEMS],ARRAY[ARMOUR]]
 var typesOfMonsters = ["globin", "poring", "Ghostly Josh", "Headless Jimmy", "Spooky Jennie", "Playboy Rob", "Mad Patrick"];
 var foodDrops = ["an Apple", "a Potato", "Jimmy's sandwich", "Josh's bacon", "Jennie's fruit punch", "Rob's pills", "Patrick's JapaDog"];
 var ack = require('ac-koa').require('hipchat');
@@ -10,8 +10,8 @@ var app = ack(pkg);
 var monsterTimer;
 var alreadyattacking = false;
 var underattack = "";
-var hp = 0;
 var alreadyrolling = "";
+var hp = 0;
 var dict = new JSdict();
 var attackdmg = 0;
 var chanceOfFaith = false;
@@ -31,7 +31,10 @@ var addon = app.addon()
 if (process.env.DEV_KEY) {
 	addon.key(process.env.DEV_KEY);
 }
-addon.webhook('room_message', /.*/i, function  * () {
+String.prototype.startsWith = function(prefix) {
+    return this.indexOf(prefix) === 0;
+}
+addon.webhook('room_message', /^[^\/].*/i, function  * () {
 	if (alreadyattacking) {
 		return;
 	}
@@ -190,6 +193,7 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 		if (((this.sender.name == underattack) && (this.match[1] == "1") && (this.match[2] == "20")) || (this.sender.name == underattack) && (numofdice == 1) && (numofsides == 20)) {
 			clearTimeout(monsterTimer);
 			if (total > hp) {
+				if (total == 20) (amountofExp = amountofExp * 2);
 				yield this.roomClient.sendNotification("@" + this.sender.name + ' defeated the ' + monsterType + ' and got ' + monsterfoodDrop + ' that restores ' + Math.floor(attackdmg) + " hp along with " + amountofExp + " exp!", {
 					color : 'purple',
 					format : 'text'
