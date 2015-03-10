@@ -36,7 +36,7 @@ addon.webhook('room_message', /.*/i, function  * () {
 		return;
 	}
 	var doweatk = (Math.floor(Math.random() * 30) + 1)
-	attackdmg = (Math.floor(Math.random() * 20) + 1)
+	attackdmg = (Math.floor(Math.random() * 10) + 1)
 	hp = (Math.floor(Math.random() * 19) + 1)
 	chanceOfFaith = ((Math.floor(Math.random() * 4) + 1) == 2);
 	amountofExp = (Math.floor(Math.random() * 10) + 0);
@@ -223,13 +223,22 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 				stats = dict.getVal(this.sender.name)[0];
 				stats[2] = 0;
 				stats[0] = parseInt(stats[0]) - parseInt(attackdmg);
-				mainArray = dict.getVal(this.sender.name);
-				mainArray[0] = stats;
-				dict.update(this.sender.name, mainArray);
+				if (stats[0] <=0){
+					yield this.roomClient.sendNotification("@" + this.sender.name + ' has died.', {
+					color : 'red',
+					format : 'text'
+					});
+					dict.remove(this.sender.name);
+					initPlayer(this.sender.name);
+				}else{
+				
+					mainArray = dict.getVal(this.sender.name);
+					mainArray[0] = stats;
+					dict.update(this.sender.name, mainArray);
+				}
 				saveData(dict);
-				console.log("MAIN ARRAY: " + mainArray.toString());
 				underattack = ""
-					alreadyattacking = false;
+				alreadyattacking = false;
 			}
 
 		}
