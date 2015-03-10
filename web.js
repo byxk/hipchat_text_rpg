@@ -59,11 +59,28 @@ addon.webhook('room_message',/.*/i , function *() {
 	alreadyattacking = true;
     underattack = this.sender.name;
 	yield this.roomClient.sendNotification("Oh no " + this.sender.name + ", the poring is blobbing after you! Roll a 1d20 and defeat it. You must beat a " + hp);
+	console.log("Starting to wait for player " + underattack);
+    monsterTimer=setTimeout(function(room, name){ 
+		console.log("Monster timed out");
+		room.sendNotification(underattack + " took too long to fight back, and nearly died to the monster. 10 hp lost.");
+		underattack = "";
+		alreadyattacking = false;
+		stats = dict.getVal(name)[0];
+		stats[0] = parseInt(stats[0]) - 10;
+		mainArray = dict.getVal(name);
+		mainArray[0] = stats;
+		dict.update(name, mainArray);
+    }, 30000, this.roomClient, this.sender.name);
+ 
   }  
 
 
   return;
 });
+addon.webhook('room_message',/^\/rpg/i , function *() {
+	yield this.roomClient.sendNotification("Available commands: roll|stats|inventory|pepper|rpg")
+});
+
 addon.webhook('room_message',/^\/stats/i , function *() {
   if (stats_process) return;
   saveData(dict);
@@ -131,14 +148,22 @@ addon.webhook('room_message',/^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9]
 	total = parseInt(total) + parseInt(modifier);
     yield this.roomClient.sendNotification(this.sender.name + ' rolled a ' + numofdice + 'd'+ numofsides + '+' +modifier + ' ...... [ ' + totalString +'] + ' + modifier + ' = ' + total.toString() );
   
-  } else if (this.match[1] && this.match[2]){
+  } else if (this.match[1] && this.match[2] || !this.match[1] && !this.match[2] && !this.match[3]){
     var totalString = "";
     var total = 0;
-    for (var i =0 ; i < numofdice ; i++ ){
-      var loopRand = (Math.floor(Math.random() * parseInt(numofsides)) + 1);
-      totalString = totalString +  loopRand + " ";
-      total = total + parseInt(loopRand);
-    }
+	if (!this.match[1] && !this.match[2] && !this.match[3]){
+		numofdice = 1;
+		numofsides = 20;
+		var rand = (Math.floor(Math.random() * parseInt(numofsides)) + 1);
+		totalString = rand.toString() + " ";
+		total = rand;
+	}else{
+      for (var i =0 ; i < numofdice ; i++ ){
+        var loopRand = (Math.floor(Math.random() * parseInt(numofsides)) + 1);
+        totalString = totalString +  loopRand + " ";
+        total = total + parseInt(loopRand);
+      }
+	}
 	
 	if (this.sender.name == underattack){
 	  mainArray = dict.getVal(this.sender.name);
