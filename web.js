@@ -1,8 +1,11 @@
 // data: [ARRAY[HP,PRAYERPOINTS,PRAYERMODIFIER],ARRAY[ITEMS],ARRAY[ARMOUR]]
 var ack = require('ac-koa').require('hipchat');
 var pkg = require('./package.json');
+var Serializer = require("backpack-node").system.Serializer;
+var ser = new Serializer();
 var fs = require('fs');
 var app = ack(pkg);
+var monsterTimer;
 var alreadyattacking = false;
 var underattack = "";
 var hp = 0;
@@ -13,6 +16,7 @@ var chanceOfFaith = false;
 var prayer_process = false;
 var inventory_process = false;
 var stats_process = false;
+
 var addon = app.addon()
   .hipchat()
   .allowRoom(true)
@@ -25,32 +29,47 @@ addon.webhook('room_message',/.*/i , function *() {
   if (alreadyattacking) {
     return;
   }
-  var doweatk = (Math.floor(Math.random() * 20) + 1)
+  var doweatk = (Math.floor(Math.random() * 30) + 1)
   attackdmg = (Math.floor(Math.random() * 20) + 1)
   hp = (Math.floor(Math.random() * 19) + 1)  
   chanceOfFaith = ((Math.floor(Math.random() * 5) + 1) == 2);
-  if (parseInt(doweatk) == 4){
+  if (parseInt(doweatk) == 4 ){
 	initPlayer(this.sender.name);
 	alreadyattacking = true;
     underattack = this.sender.name;
-	return yield this.roomClient.sendNotification("Quickly " + this.sender.name + ", the globin is going after you! Roll a 1d20 and defeat it. You must beat a " + hp);
+	yield this.roomClient.sendNotification("Quickly " + this.sender.name + ", the globin is going after you! Roll a 1d20 and defeat it. You must beat a " + hp);
+	console.log("Starting to wait for player " + underattack);
+    monsterTimer=setTimeout(function(room, name){ 
+		console.log("Monster timed out");
+		room.sendNotification(underattack + " took too long to fight back, and nearly died to the monster. 10 hp lost.");
+		underattack = "";
+		alreadyattacking = false;
+		stats = dict.getVal(name)[0];
+		stats[0] = parseInt(stats[0]) - 10;
+		mainArray = dict.getVal(name);
+		mainArray[0] = stats;
+		dict.update(name, mainArray);
+    }, 30000, this.roomClient, this.sender.name);
+ 
   }else if (parseInt(doweatk) == 12){
 	initPlayer(this.sender.name);
 	alreadyattacking = true;
     underattack = this.sender.name;
-	return yield this.roomClient.sendNotification("Oh no " + this.sender.name + ", the poring is blobbing after you! Roll a 1d20 and defeat it. You must beat a " + hp);
+	yield this.roomClient.sendNotification("Oh no " + this.sender.name + ", the poring is blobbing after you! Roll a 1d20 and defeat it. You must beat a " + hp);
   }  
+
+
+  return;
 });
 addon.webhook('room_message',/^\/stats/i , function *() {
   if (stats_process) return;
+  saveData(dict);
   stats_process = true;
   initPlayer(this.sender.name);
   mainArray = dict.getVal(this.sender.name);
   stats = mainArray[0];
   
-  yield this.roomClient.sendNotification(this.sender.name + "'s hp: " + stats[0].toString());
-  yield this.roomClient.sendNotification(this.sender.name + "'s pepper: " + stats[1].toString());
-  yield this.roomClient.sendNotification(this.sender.name + "'s seasoning modifier: " + stats[2].toString());
+  yield this.roomClient.sendNotification(this.sender.name + "'s hp: " + stats[0].toString() +" | pepper: " + stats[1].toString() + " | seasoning modifier: " + stats[2].toString());
   stats_process = false;
 });
 
@@ -128,10 +147,11 @@ addon.webhook('room_message',/^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9]
       yield this.roomClient.sendNotification(this.sender.name + ' rolled a ' + numofdice + 'd'+ numofsides + ' ...... [ ' + totalString +'] = ' + total.toString() );
 	}
     if ((this.sender.name == underattack) && (this.match[1] == "1") && (this.match[2] == "20")){
+	  clearTimeout(monsterTimer);
 	  if (total > hp) {
-		yield this.roomClient.sendNotification(this.sender.name + ' defeated the monster!');
-		yield this.roomClient.sendNotification(this.sender.name + ' gained back ' + Math.floor(attackdmg / 2) + " hp!");
+		yield this.roomClient.sendNotification(this.sender.name + ' defeated the monster and gained back ' + Math.floor(attackdmg / 2) + " hp!");
 		stats = dict.getVal(this.sender.name)[0];
+		stats[1] = 0;
 		stats[0] = parseInt(stats[0]) + Math.floor(attackdmg / 2);
 		if (chanceOfFaith){
 		  chanceOfFaith = false;
@@ -178,24 +198,28 @@ function initPlayer(playername){
   }
 }
 function saveData(file){
-	var str = JSON.stringify(file);
-	fs.writeFile("data", str, function(err) {
+	ser.registerKnownType("JSDICT", JSdict);
+	var data = ser.stringify(
+    {
+        dict: dict
+    });
+	
+	fs.writeFile("data", data, function(err) {
     if(err) {
         console.log(err);
     } else {
-        console.log("The file was saved!");
+        console.log("The file was saved!");	
+		load = fs.readFileSync("data", 'utf8');
+		var deserialized = ser.parse(load);
+		console.log(deserialized.dict);
     }
 	}); 
 }
 function loadData(){
-	var thedata = "";
-	fs.readFile(__dirname + "data", function(error, data) {
-      console.log(error);
-	  console.log(data);
-      thedata = data;
-	});
-	var obj = JSON.parse(thedata);
-	dict = obj;
+  ser.registerKnownType("JSDICT", JSdict);
+  var load = fs.readFileSync("data", 'utf8');
+  var deserialized = ser.parse(load);
+  dict = deserialized.dict;
 }
 function JSdict() {
     this.Keys = [];
@@ -302,5 +326,5 @@ if (!JSdict.prototype.remove) {
         }
     }
 }
-//loadData();
+loadData();
 app.listen();
