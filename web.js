@@ -1,4 +1,5 @@
 // data: [ARRAY[HP,PRAYERPOINTS,PRAYERMODIFIER,EXP, LEVEL],ARRAY[ITEMS],ARRAY[ARMOUR]]
+var typesOfMonsters = ["globin", "poring", "Ghostly Josh", "Headless Jimmy", "Spooky Jennie", "Playboy Rob", "Mad Patrick"]
 var ack = require('ac-koa').require('hipchat');
 var pkg = require('./package.json');
 var Serializer = require("backpack-node").system.Serializer;
@@ -14,6 +15,8 @@ var dict = new JSdict();
 var attackdmg = 0;
 var chanceOfFaith = false;
 var amountofExp = false;
+var monsterType = "";
+var levelofMob = 1;
 var prayer_process = false;
 var inventory_process = false;
 var stats_process = false;
@@ -30,35 +33,25 @@ addon.webhook('room_message',/.*/i , function *() {
   if (alreadyattacking) {
     return;
   }
-  var doweatk = (Math.floor(Math.random() * 35) + 1)
+  var doweatk = (Math.floor(Math.random() * 30) + 1)
   attackdmg = (Math.floor(Math.random() * 20) + 1)
   hp = (Math.floor(Math.random() * 19) + 1)  
   chanceOfFaith = ((Math.floor(Math.random() * 5) + 1) == 2);
   amountofExp = (Math.floor(Math.random() * 10) + 0);
-  if (parseInt(doweatk) == 4 ){ 
+  if (parseInt(doweatk) == 4 ){
 	saveData(dict);
 	initPlayer(this.sender.name);
 	alreadyattacking = true;
     underattack = this.sender.name;
-	yield this.roomClient.sendNotification("Quickly " + this.sender.name + ", the globin is going after you! Roll a 1d20 and defeat it. You must beat a " + hp);
-	console.log("Starting to wait for player " + underattack);
-    monsterTimer=setTimeout(function(room, name){ 
-		console.log("Monster timed out");
-		room.sendNotification(underattack + " took too long to fight back, and nearly died to the monster. 10 hp lost.");
-		underattack = "";
-		alreadyattacking = false;
-		stats = dict.getVal(name)[0];
-		stats[0] = parseInt(stats[0]) - 10;
-		mainArray = dict.getVal(name);
-		mainArray[0] = stats;
-		dict.update(name, mainArray);
-    }, 30000, this.roomClient, this.sender.name);
- 
-  }else if (parseInt(doweatk) == 12){
-	initPlayer(this.sender.name);
-	alreadyattacking = true;
-    underattack = this.sender.name;
-	yield this.roomClient.sendNotification("Oh no " + this.sender.name + ", the poring is blobbing after you! Roll a 1d20 and defeat it. You must beat a " + hp);
+	// lets get player level
+	var playerLevel = dict.getVal(this.sender.name)[0][4];
+	monsterType =  typesOfMonsters[Math.floor(Math.random() * typesOfMonsters.length)];
+	levelofMob = (Math.floor(Math.random() * (playerLevel+1)) + 1)  
+	yield this.roomClient.sendNotification("Quickly @" + this.sender.name + ", the level "+ levelofMob.toString() +" " + monsterType + " is going after you! Roll a 1d20 and defeat it. You must beat a " + hp,{
+    color: 'random',
+	notify: 'true',
+    format: 'text'
+	});
 	console.log("Starting to wait for player " + underattack);
     monsterTimer=setTimeout(function(room, name){ 
 		console.log("Monster timed out");
@@ -89,7 +82,10 @@ addon.webhook('room_message',/^\/stats/i , function *() {
   mainArray = dict.getVal(this.sender.name);
   stats = mainArray[0];
   
-  yield this.roomClient.sendNotification(this.sender.name + "'s hp: " + stats[0].toString() + " | Level: " + stats[4] + " | EXP: " + stats[3] +" | pepper: " + stats[1].toString() + " | seasoning modifier: " + stats[2].toString());
+  yield this.roomClient.sendNotification("@" +this.sender.name + "'s hp: " + stats[0].toString() + " | Level: " + stats[4] + " | EXP: " + stats[3] +" | pepper: " + stats[1].toString() + " | seasoning modifier: " + stats[2].toString(),{
+    color: 'green',
+    format: 'text'
+  });
   stats_process = false;
 });
 
@@ -134,7 +130,10 @@ addon.webhook('room_message',/^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9]
   var numofsides = this.match[2];
   var modifier = this.match[3];
   if (parseInt(this.match[1]) > 100) {
-    return yield this.roomClient.sendNotification(this.sender.name + " sucks at foosball");
+    return yield this.roomClient.sendNotification("@" +this.sender.name + " sucks at foosball",{
+    color: 'yellow',
+    format: 'text'
+  });
   }
   if (this.match[1] && this.match[2] && this.match[3]) {
     var totalString = "";
@@ -146,7 +145,10 @@ addon.webhook('room_message',/^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9]
       total = total + parseInt(loopRand);
     }
 	total = parseInt(total) + parseInt(modifier);
-    yield this.roomClient.sendNotification(this.sender.name + ' rolled a ' + numofdice + 'd'+ numofsides + '+' +modifier + ' ...... [ ' + totalString +'] + ' + modifier + ' = ' + total.toString() );
+    yield this.roomClient.sendNotification("@" +this.sender.name + ' rolled a ' + numofdice + 'd'+ numofsides + '+' +modifier + ' ...... [ ' + totalString +'] + ' + modifier + ' = ' + total.toString(), {
+    color: 'purple',
+    format: 'text'
+  });
   
   } else if (this.match[1] && this.match[2] || !this.match[1] && !this.match[2] && !this.match[3]){
     var totalString = "";
@@ -169,15 +171,24 @@ addon.webhook('room_message',/^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9]
 	  mainArray = dict.getVal(this.sender.name);
 	  stats = mainArray[0]
 	  total = total + stats[2];
-	  yield this.roomClient.sendNotification(this.sender.name + ' rolled a ' + numofdice + 'd'+ numofsides + '+ seasoning modifier: ' +stats[2].toString() +' ...... [ ' + totalString +'] = ' + total.toString() );
+	  yield this.roomClient.sendNotification("@" +this.sender.name + ' rolled a ' + numofdice + 'd'+ numofsides + '+ seasoning modifier: ' +stats[2].toString() +' ...... [ ' + totalString +'] = ' + total.toString() , {
+    color: 'purple',
+    format: 'text'
+  });
 	  
 	}else{		
-      yield this.roomClient.sendNotification(this.sender.name + ' rolled a ' + numofdice + 'd'+ numofsides + ' ...... [ ' + totalString +'] = ' + total.toString() );
+      yield this.roomClient.sendNotification("@" +this.sender.name + ' rolled a ' + numofdice + 'd'+ numofsides + ' ...... [ ' + totalString +'] = ' + total.toString() , {
+    color: 'purple',
+    format: 'text'
+  });
 	}
     if ((this.sender.name == underattack) && (this.match[1] == "1") && (this.match[2] == "20")){
 	  clearTimeout(monsterTimer);
 	  if (total > hp) {
-		yield this.roomClient.sendNotification(this.sender.name + ' defeated the monster and gained back ' + Math.floor(attackdmg / 2) + " hp along with " + amountofExp + " exp!");
+		yield this.roomClient.sendNotification("@" +this.sender.name + ' defeated the ' + monsterType + ' and gained back ' + Math.floor(attackdmg / 2) + " hp along with " + amountofExp + " exp!", {
+    color: 'purple',
+    format: 'text'
+  });
 		stats = dict.getVal(this.sender.name)[0];
 		stats[3] = stats[3] + amountofExp;
 		stats[4] = Math.floor(stats[3] / 100);
@@ -189,22 +200,30 @@ addon.webhook('room_message',/^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9]
 		stats[0] = parseInt(stats[0]) + Math.floor(attackdmg / 2);
 		if (chanceOfFaith){
 		  chanceOfFaith = false;
-		  yield this.roomClient.sendNotification('The monster dropped some pepper! ' + this.sender.name + ' gained 1 pepper.');
+		  yield this.roomClient.sendNotification('The monster dropped some pepper! @' + this.sender.name + ' gained 1 pepper.', {
+    color: 'purple',
+    format: 'text'
+  });
 		  stats[1] = stats[1] + 1;
 		}
 		mainArray = dict.getVal(this.sender.name);
 		mainArray[0] = stats;
 		dict.update(this.sender.name, mainArray);
+		saveData(dict);
 		console.log("MAIN ARRAY: " + mainArray.toString());
 		alreadyattacking = false;
 	  } else{
-		yield this.roomClient.sendNotification(this.sender.name + ' lost ' + attackdmg + ' hp!');
+		yield this.roomClient.sendNotification("@" +this.sender.name + ' lost ' + attackdmg + ' hp!', {
+    color: 'purple',
+    format: 'text'
+  });
 		stats = dict.getVal(this.sender.name)[0];
 		stats[2] = 0;
 		stats[0] = parseInt(stats[0]) - parseInt(attackdmg);
 		mainArray = dict.getVal(this.sender.name);
 		mainArray[0] = stats;
 		dict.update(this.sender.name, mainArray);
+		saveData(dict);
 		console.log("MAIN ARRAY: " + mainArray.toString());		
 		underattack = ""
 		alreadyattacking = false;
@@ -213,7 +232,10 @@ addon.webhook('room_message',/^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9]
 	}
   } else if (this.match[1]) {
   
-    yield this.roomClient.sendNotification(this.sender.name + ' rolled a dice with ' + this.match[1] + ' sides ...... [' + (Math.floor(Math.random() * parseInt(this.match[1])) + 1)+']' );
+    yield this.roomClient.sendNotification("@" +this.sender.name + ' rolled a dice with ' + this.match[1] + ' sides ...... [' + (Math.floor(Math.random() * parseInt(this.match[1])) + 1)+']' , {
+    color: 'purple',
+    format: 'text'
+  });
 
   }
   alreadyrolling = "";
