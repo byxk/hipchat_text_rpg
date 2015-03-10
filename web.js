@@ -1,4 +1,4 @@
-// data: [ARRAY[HP,PRAYERPOINTS,PRAYERMODIFIER],ARRAY[ITEMS],ARRAY[ARMOUR]]
+// data: [ARRAY[HP,PRAYERPOINTS,PRAYERMODIFIER,EXP, LEVEL],ARRAY[ITEMS],ARRAY[ARMOUR]]
 var ack = require('ac-koa').require('hipchat');
 var pkg = require('./package.json');
 var Serializer = require("backpack-node").system.Serializer;
@@ -13,6 +13,7 @@ var alreadyrolling = "";
 var dict = new JSdict();
 var attackdmg = 0;
 var chanceOfFaith = false;
+var amountofExp = false;
 var prayer_process = false;
 var inventory_process = false;
 var stats_process = false;
@@ -33,7 +34,9 @@ addon.webhook('room_message',/.*/i , function *() {
   attackdmg = (Math.floor(Math.random() * 20) + 1)
   hp = (Math.floor(Math.random() * 19) + 1)  
   chanceOfFaith = ((Math.floor(Math.random() * 5) + 1) == 2);
-  if (parseInt(doweatk) == 4 ){
+  amountofExp = (Math.floor(Math.random() * 10) + 0);
+  if (parseInt(doweatk) == 4 ){ 
+	saveData(dict);
 	initPlayer(this.sender.name);
 	alreadyattacking = true;
     underattack = this.sender.name;
@@ -69,7 +72,7 @@ addon.webhook('room_message',/^\/stats/i , function *() {
   mainArray = dict.getVal(this.sender.name);
   stats = mainArray[0];
   
-  yield this.roomClient.sendNotification(this.sender.name + "'s hp: " + stats[0].toString() +" | pepper: " + stats[1].toString() + " | seasoning modifier: " + stats[2].toString());
+  yield this.roomClient.sendNotification(this.sender.name + "'s hp: " + stats[0].toString() + " | Level: " + stats[4] + " | EXP: " + stats[3] +" | pepper: " + stats[1].toString() + " | seasoning modifier: " + stats[2].toString());
   stats_process = false;
 });
 
@@ -142,16 +145,21 @@ addon.webhook('room_message',/^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9]
 	  stats = mainArray[0]
 	  total = total + stats[2];
 	  yield this.roomClient.sendNotification(this.sender.name + ' rolled a ' + numofdice + 'd'+ numofsides + '+ seasoning modifier: ' +stats[2].toString() +' ...... [ ' + totalString +'] = ' + total.toString() );
-	  stats[2] = 0;
+	  
 	}else{		
       yield this.roomClient.sendNotification(this.sender.name + ' rolled a ' + numofdice + 'd'+ numofsides + ' ...... [ ' + totalString +'] = ' + total.toString() );
 	}
     if ((this.sender.name == underattack) && (this.match[1] == "1") && (this.match[2] == "20")){
 	  clearTimeout(monsterTimer);
 	  if (total > hp) {
-		yield this.roomClient.sendNotification(this.sender.name + ' defeated the monster and gained back ' + Math.floor(attackdmg / 2) + " hp!");
+		yield this.roomClient.sendNotification(this.sender.name + ' defeated the monster and gained back ' + Math.floor(attackdmg / 2) + " hp along with " + amountofExp + " exp!");
 		stats = dict.getVal(this.sender.name)[0];
-		stats[1] = 0;
+		stats[3] = stats[3] + amountofExp;
+		amountofExp = 0;
+		stats[2] = 0;
+		if (stats[1] > 0){	
+		  stats[1] = stats[1] - 1;
+		}
 		stats[0] = parseInt(stats[0]) + Math.floor(attackdmg / 2);
 		if (chanceOfFaith){
 		  chanceOfFaith = false;
@@ -166,6 +174,7 @@ addon.webhook('room_message',/^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9]
 	  } else{
 		yield this.roomClient.sendNotification(this.sender.name + ' lost ' + attackdmg + ' hp!');
 		stats = dict.getVal(this.sender.name)[0];
+		stats[2] = 0;
 		stats[0] = parseInt(stats[0]) - parseInt(attackdmg);
 		mainArray = dict.getVal(this.sender.name);
 		mainArray[0] = stats;
