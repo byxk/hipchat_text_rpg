@@ -36,7 +36,7 @@ addon.webhook('room_message',/.*/i , function *() {
   var doweatk = (Math.floor(Math.random() * 30) + 1)
   attackdmg = (Math.floor(Math.random() * 20) + 1)
   hp = (Math.floor(Math.random() * 19) + 1)  
-  chanceOfFaith = ((Math.floor(Math.random() * 5) + 1) == 2);
+  chanceOfFaith = ((Math.floor(Math.random() * 4) + 1) == 2);
   amountofExp = (Math.floor(Math.random() * 10) + 0);
   if (parseInt(doweatk) == 4 ){
 	saveData(dict);
@@ -48,7 +48,7 @@ addon.webhook('room_message',/.*/i , function *() {
 	monsterType =  typesOfMonsters[Math.floor(Math.random() * typesOfMonsters.length)];
 	levelofMob = (Math.floor(Math.random() * (playerLevel+1)) + 1)  
 	yield this.roomClient.sendNotification("Quickly @" + this.sender.name + ", the level "+ levelofMob.toString() +" " + monsterType + " is going after you! Roll a 1d20 and defeat it. You must beat a " + hp,{
-    color: 'random',
+    color: 'red',
 	notify: 'true',
     format: 'text'
 	});
@@ -182,7 +182,7 @@ addon.webhook('room_message',/^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9]
     format: 'text'
   });
 	}
-    if ((this.sender.name == underattack) && (this.match[1] == "1") && (this.match[2] == "20")){
+    if (((this.sender.name == underattack) && (this.match[1] == "1") && (this.match[2] == "20")) || (this.sender.name == underattack) && (numofdice == 1) && (numofsides == 20)){
 	  clearTimeout(monsterTimer);
 	  if (total > hp) {
 		yield this.roomClient.sendNotification("@" +this.sender.name + ' defeated the ' + monsterType + ' and gained back ' + Math.floor(attackdmg / 2) + " hp along with " + amountofExp + " exp!", {
