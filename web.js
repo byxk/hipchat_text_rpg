@@ -30,7 +30,7 @@ addon.webhook('room_message',/.*/i , function *() {
   if (alreadyattacking) {
     return;
   }
-  var doweatk = (Math.floor(Math.random() * 30) + 1)
+  var doweatk = (Math.floor(Math.random() * 35) + 1)
   attackdmg = (Math.floor(Math.random() * 20) + 1)
   hp = (Math.floor(Math.random() * 19) + 1)  
   chanceOfFaith = ((Math.floor(Math.random() * 5) + 1) == 2);
@@ -180,6 +180,7 @@ addon.webhook('room_message',/^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9]
 		yield this.roomClient.sendNotification(this.sender.name + ' defeated the monster and gained back ' + Math.floor(attackdmg / 2) + " hp along with " + amountofExp + " exp!");
 		stats = dict.getVal(this.sender.name)[0];
 		stats[3] = stats[3] + amountofExp;
+		stats[4] = Math.floor(stats[3] / 100);
 		amountofExp = 0;
 		stats[2] = 0;
 		if (stats[1] > 0){	
