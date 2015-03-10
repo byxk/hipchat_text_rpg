@@ -1,5 +1,6 @@
 // data: [ARRAY[HP,PRAYERPOINTS,PRAYERMODIFIER,EXP, LEVEL],ARRAY[ITEMS],ARRAY[ARMOUR]]
-var typesOfMonsters = ["globin", "poring", "Ghostly Josh", "Headless Jimmy", "Spooky Jennie", "Playboy Rob", "Mad Patrick"]
+var typesOfMonsters = ["globin", "poring", "Ghostly Josh", "Headless Jimmy", "Spooky Jennie", "Playboy Rob", "Mad Patrick"];
+var foodDrops = ["an Apple", "a Potato", "Jimmy's sandwich", "Josh's bacon", "Jennie's fruit punch", "Rob's pills", "Patrick's JapaDog"];
 var ack = require('ac-koa').require('hipchat');
 var pkg = require('./package.json');
 var Serializer = require("backpack-node").system.Serializer;
@@ -16,6 +17,7 @@ var attackdmg = 0;
 var chanceOfFaith = false;
 var amountofExp = false;
 var monsterType = "";
+var monsterfoodDrop = "";
 var levelofMob = 1;
 var prayer_process = false;
 var inventory_process = false;
@@ -46,6 +48,7 @@ addon.webhook('room_message',/.*/i , function *() {
 	// lets get player level
 	var playerLevel = dict.getVal(this.sender.name)[0][4];
 	monsterType =  typesOfMonsters[Math.floor(Math.random() * typesOfMonsters.length)];
+	monsterfoodDrop = foodDrops[Math.floor(Math.random() * foodDrops.length)];
 	levelofMob = (Math.floor(Math.random() * (playerLevel+1)) + 1)  
 	yield this.roomClient.sendNotification("Quickly @" + this.sender.name + ", the level "+ levelofMob.toString() +" " + monsterType + " is going after you! Roll a 1d20 and defeat it. You must beat a " + hp,{
     color: 'red',
@@ -185,7 +188,7 @@ addon.webhook('room_message',/^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9]
     if (((this.sender.name == underattack) && (this.match[1] == "1") && (this.match[2] == "20")) || (this.sender.name == underattack) && (numofdice == 1) && (numofsides == 20)){
 	  clearTimeout(monsterTimer);
 	  if (total > hp) {
-		yield this.roomClient.sendNotification("@" +this.sender.name + ' defeated the ' + monsterType + ' and gained back ' + Math.floor(attackdmg / 2) + " hp along with " + amountofExp + " exp!", {
+		yield this.roomClient.sendNotification("@" +this.sender.name + ' defeated the ' + monsterType + ' and got ' +monsterfoodDrop + ' that restores ' + Math.floor(attackdmg) + " hp along with " + amountofExp + " exp!", {
     color: 'purple',
     format: 'text'
   });
