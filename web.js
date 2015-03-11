@@ -266,10 +266,85 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 	alreadyrolling = "";
 });
 
-function sleep(milliSeconds) {
+addon.webhook('room_message', /^\/attack/i, function * () {
+
+});
+
+// DICE ROLLING FUNCTIONS
+// ======================
+
+// USAGE: Print this string with "@UserX: " appended to the front.
+function formatRoll (num, sides, mod, res) {
+	var pre_str = "You rolled " + num + "d" + sides + "+" + mod + ": ";
+	
+	var res_str = "(";
+	for (int i = 1; i < num+1; i++) {
+		if (i == 1) {
+			res_str += res[i];
+		} else {
+			res_str += "+" + res[i];
+		}
+	}
+	res_str += ")";
+	if (mod) {
+		res_str += "+" + mod;	
+	}
+	res_str += " = " + res[0];
+
+	return pre_str + res_str;
+}
+
+function rollDice (num, sides, mod) {
+	var res = 0;
+
+	// default values
+	if (!num) {
+		num = 1;
+	}
+	if (!sides) {
+		sides = 20;
+	}
+	if (!mod) {
+		mod = 0;
+	}
+
+	// sanity check
+	if (num > 100) {
+		return -1;
+	}
+
+	for (i = 1; i < num + 1; i++) {
+		res[i] = randFromRange(1, sides);
+		res[0] += ret[i];
+	}
+	return res;
+}
+
+function randFromRange (low, high) {
+	var diff = parseInt(high) - parseInt(low);
+	return Math.floor(Math.random() * diff + parseInt(low));
+}
+
+// HIPCHAT FUNCTIONS
+// =================
+
+function printMessage (msg, clr) {
+	yield this.roomClient.sendNotification(
+		msg, 
+		{
+			color : clr,
+			format : 'text'
+		});
+}
+
+// PAT'S RANDOM, UNSORTED FUNCTIONS
+// ================================
+
+function sleep (milliSeconds) {
 	var startTime = new Date().getTime(); // get the current time
 	while (new Date().getTime() < startTime + milliSeconds); // hog cpu
 }
+
 function initPlayer(playername) {
 	stats = [100, 1, 0, 0, 0, 0];
 	inventory = ["Sealed rusty pickaxe", "", ""];
@@ -279,6 +354,7 @@ function initPlayer(playername) {
 		dict.add(playername, mainArray);
 	}
 }
+
 function saveData(file) {
 	ser.registerKnownType("JSDICT", JSdict);
 	var data = ser.stringify({
@@ -296,6 +372,10 @@ function saveData(file) {
 		}
 	});
 }
+
+// PERSISTENCE
+// ===========
+
 function loadData() {
 	ser.registerKnownType("JSDICT", JSdict);
 	var load = fs.readFileSync("data", 'utf8');
