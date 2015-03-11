@@ -162,25 +162,14 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 	var numofsides = this.match[2];
 	var modifier = this.match[3];
 	if (parseInt(this.match[1]) > 100) {
-		return yield this.roomClient.sendNotification("@" + this.sender.name + " sucks at foosball", {
-			color : 'yellow',
-			format : 'text'
-		});
+        return yield printMessage("@" + this.sender.name + " sucks at foosball", "yellow", this.roomClient, "text")
 	}
 	if (this.match[1] && this.match[2] && this.match[3]) {
-		var totalString = "";
-		var total = 0;
+        var diceRoll = rollDice(parseInt(numofdice),parseInt(numofsides), parseInt(modifier));
+		var totalString = formatRoll(parseInt(numofdice),parseInt(numofsides),parseInt(modifier),diceRoll, this.sender.name);
+		var total = diceRoll[0]
+        yield printMessage(totalString, "purple", this.roomClient, "text");
 
-		for (var i = 0; i < numofdice; i++) {
-			var loopRand = (Math.floor(Math.random() * parseInt(numofsides)) + 1);
-			totalString = totalString + loopRand + " ";
-			total = total + parseInt(loopRand);
-		}
-		total = parseInt(total) + parseInt(modifier);
-		yield this.roomClient.sendNotification("@" + this.sender.name + ' rolled a ' + numofdice + 'd' + numofsides + '+' + modifier + ' ...... [ ' + totalString + '] + ' + modifier + ' = ' + total.toString(), {
-			color : 'purple',
-			format : 'text'
-		});
 
 	} else if (this.match[1] && this.match[2] || !this.match[1] && !this.match[2] && !this.match[3]) {
 		var totalString = "";
@@ -313,6 +302,9 @@ function formatRoll (num, sides, mod, res, playername) {
 }
 
 function rollDice (num, sides, mod) {
+    console.log(num);
+    console.log(sides);
+    console.log(mod);
 	var res = [];
 	res.push(0);
 
@@ -328,7 +320,7 @@ function rollDice (num, sides, mod) {
 	}
 
 	// sanity check
-	if (num > 100) {
+	if (parseInt(num) > 100) {
 		res[0] = -1;
 		return res;
 	}
@@ -348,12 +340,13 @@ function randFromRange (low, high) {
 // HIPCHAT FUNCTIONS
 // =================
 
-function printMessage (msg, clr, room) {
+function printMessage (msg, clr, room, form) {
+    if (form == "undefined") form = "html";
 	return room.sendNotification(
 		msg, 
 		{
 			color : clr,
-			format : 'html'
+			format : form
 		});
 	
 }
