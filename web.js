@@ -355,6 +355,42 @@ function initPlayer(playername) {
 	}
 }
 
+function checkPlayer(playername){
+	mainArray = dict.getVal(playername);
+	if (mainArray.length == 2){
+		console.log("Updating Player");
+		// playerData not up to v2
+		playerClass = ["","","","","","","",""];
+		mainArray.push(playerClass);
+	}		
+}
+
+function classCast(playername){
+	var abilityCheck = ((Math.floor(Math.random() * 7) + 1) == 5)
+	var mainArray = dict.getVal(playername);
+	var playerClass = mainArray[2];
+	switch (playerClass[0]){
+		case "Cleric":
+			break;
+		case "Mage":
+			break;
+		case "Princess":
+			break;
+		case "Warrior":
+			break;
+		default:
+			return;
+		
+		
+	}
+	
+	
+}
+
+function randomHelper(upperbound){
+	return (Math.floor(Math.random() * upperbound) + 1)
+}
+
 function saveData(file) {
 	ser.registerKnownType("JSDICT", JSdict);
 	var data = ser.stringify({
