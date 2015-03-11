@@ -346,7 +346,6 @@ function sleep (milliSeconds) {
 	var startTime = new Date().getTime(); // get the current time
 	while (new Date().getTime() < startTime + milliSeconds); // hog cpu
 }
-
 function initPlayer(playername) {
 	stats = [100, 1, 0, 0, 0, 0];
 	inventory = ["Sealed rusty pickaxe", "", ""];
@@ -356,7 +355,6 @@ function initPlayer(playername) {
 		dict.add(playername, mainArray);
 	}
 }
-
 function saveData(file) {
 	ser.registerKnownType("JSDICT", JSdict);
 	var data = ser.stringify({
@@ -374,10 +372,6 @@ function saveData(file) {
 		}
 	});
 }
-
-// PERSISTENCE
-// ===========
-
 function loadData() {
 	ser.registerKnownType("JSDICT", JSdict);
 	var load = fs.readFileSync("data", 'utf8');
