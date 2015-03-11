@@ -2,7 +2,7 @@
 var typesOfMonsters = ["globin", "poring", "Ghostly Josh", "Headless Jimmy", "Spooky Jennie", "Playboy Rob", "Mad Patrick"];
 var foodDrops = ["an Apple", "a Potato", "Jimmy's sandwich", "Josh's bacon", "Jennie's fruit punch", "Rob's pills", "Patrick's JapaDog"];
 var classTypes = ["Cleric", "Mage", "Princess", "Warrior"];
-var levelDice =["1d20", "1d20", "1d30", "1d30", "1d40"];
+var levelDice =["1d20", "1d20", "1d30", "1d30", "1d40","1d40","1d50","1d50","1d60"];
 var monsterLevelDice = [20,30,40,50,60];
 var ack = require('ac-koa').require('hipchat');
 var pkg = require('./package.json');
@@ -57,8 +57,7 @@ addon.webhook('room_message', /^\/class\s*([a-z]+)?/i, function  * () {
 	}else{
 		printMessage("Available classes: Cleric, Mage, Warrior, Princess. Choose with /class plsgivemesomethinggood", "yellow", this.roomClient);
 	}
-		
-	
+			
 });
 addon.webhook('room_message', /^[^\/].*/i, function  * () {
 	if (alreadyattacking) {
@@ -67,7 +66,6 @@ addon.webhook('room_message', /^[^\/].*/i, function  * () {
 	var doweatk = (Math.floor(Math.random() * 20) + 1)
 	if (parseInt(doweatk) == 4) {
 		
-		saveData(dict);
 		initPlayer(this.sender.name);
 		alreadyattacking = true;
 		underattack = this.sender.name;
@@ -104,13 +102,12 @@ addon.webhook('room_message', /^[^\/].*/i, function  * () {
 	return;
 });
 addon.webhook('room_message', /^\/rpg/i, function  * () {
-	yield this.roomClient.sendNotification("Available commands: roll|stats|inventory|pepper|rpg")
+	yield this.roomClient.sendNotification("Available commands: roll|class|stats|inventory|pepper|rpg")
 });
 
 addon.webhook('room_message', /^\/stats/i, function  * () {
 	if (stats_process)
 		return;
-	saveData(dict);
 	stats_process = true;
 	initPlayer(this.sender.name);
 	mainArray = dict.getVal(this.sender.name);
@@ -138,7 +135,7 @@ addon.webhook('room_message', /^\/pepper/i, function  * () {
 	if (prayer_process) {
 		return;
 	}
-	saveData(dict);
+
 	prayer_process = true;
 	initPlayer(this.sender.name);
 	mainArray = dict.getVal(this.sender.name);
@@ -159,7 +156,6 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 	initPlayer(this.sender.name);
 	if (this.sender.name == alreadyrolling)
 		return;
-	saveData(dict);
 	alreadyrolling = this.sender.name;
 	var numofvars = this.match;
 	var numofdice = this.match[1];
@@ -191,41 +187,27 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 		var total = 0;
 		if (!this.match[1] && !this.match[2] && !this.match[3]) {
 			var diceArray;
+			var mainArray = dict.getVal(this.sender.name);
+			var seasonMod = mainArray[0][2];
 			playerDiceType = levelDice[dict.getVal(this.sender.name)[0][4]];
 			diceArray = playerDiceType.split("d");
 			numofdice = parseInt(diceArray[0]);
 			numofsides = parseInt(diceArray[1]);
 			var rand = (Math.floor(Math.random() * parseInt(numofsides)) + 1);
-			console.log("nums" + numofsides);
-			totalString = rand.toString() + " ";
-			total = rand;
+			totalString = formatRoll(numofdice, numofsides, seasonMod, rollDice(numofdice,numofsides,0), this.sender.name)
+			total = rollDice(numofdice,numofsides,0)[0]
 		} else {
 			
 			numofdice = parseInt(this.match[1]);
 			numofsides = parseInt(this.match[2]);
 			console.log("NUMOFDICE: " + numofdice);
-			for (var i = 0; i < numofdice; i++) {
-				var loopRand = (Math.floor(Math.random() * parseInt(numofsides)) + 1);
-				totalString = totalString + loopRand + " ";
-				total = total + parseInt(loopRand);
-			}
+			var diceResult = rollDice(numofdice,numofsides,0);
+			totalString = formatRoll(numofdice, numofsides, 0 , diceResult, this.sender.name)
+			total = diceResult[0];
+			
 		}
+		yield printMessage(totalString, "purple", this.roomClient);
 
-		if (this.sender.name == underattack) {
-			mainArray = dict.getVal(this.sender.name);
-			stats = mainArray[0]
-				total = total + stats[2];
-			yield this.roomClient.sendNotification("@" + this.sender.name + ' rolled a ' + numofdice + 'd' + numofsides + '+ seasoning modifier: ' + stats[2].toString() + ' ...... [ ' + totalString + '] = ' + total.toString(), {
-				color : 'purple',
-				format : 'text'
-			});
-
-		} else {
-			yield this.roomClient.sendNotification("@" + this.sender.name + ' rolled a ' + numofdice + 'd' + numofsides + ' ...... [ ' + totalString + '] = ' + total.toString(), {
-				color : 'purple',
-				format : 'text'
-			});
-		}
 		if (playerDiceType){
 			var diceArray = playerDiceType.split("d");
 			
@@ -237,7 +219,9 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 		
 		if (((this.sender.name == underattack) && (numofdice == parseInt(diceArray[0])) && (numofsides == parseInt(diceArray[1]))) ||((this.sender.name == underattack) && (this.match[1] == parseInt(diceArray[0])) && (this.match[2] == parseInt(diceArray[1]))) ) {
 			clearTimeout(monsterTimer);
-			if (total > hp) {
+			console.log("TOTAL ROLL: " + total);
+			if (parseInt(total) > hp) {
+			
 				if (total == 20) (amountofExp = amountofExp * 2);
 				yield this.roomClient.sendNotification("@" + this.sender.name + ' defeated the ' + monsterType + ' and got ' + monsterfoodDrop + ' that restores ' + Math.floor(attackdmg) + " hp along with " + amountofExp + " exp!", {
 					color : 'purple',
@@ -261,7 +245,6 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 				mainArray = dict.getVal(this.sender.name);
 				mainArray[0] = stats;
 				dict.update(this.sender.name, mainArray);
-				saveData(dict);
 				console.log("MAIN ARRAY: " + mainArray.toString());
 				alreadyattacking = false;
 			} else {
@@ -285,7 +268,6 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 					mainArray[0] = stats;
 					dict.update(this.sender.name, mainArray);
 				}
-				saveData(dict);
 				underattack = ""
 				alreadyattacking = false;
 			}
@@ -331,7 +313,8 @@ function formatRoll (num, sides, mod, res, playername) {
 }
 
 function rollDice (num, sides, mod) {
-	var res = 0;
+	var res = [];
+	res.push(0);
 
 	// default values
 	if (!num) {
@@ -346,11 +329,12 @@ function rollDice (num, sides, mod) {
 
 	// sanity check
 	if (num > 100) {
-		return -1;
+		res[0] = -1;
+		return res;
 	}
 
 	for (i = 1; i < num + 1; i++) {
-		res[i] = randFromRange(1, sides);
+		res.push(randFromRange(1, sides));
 		res[0] += res[i];
 	}
 	return res;
@@ -365,12 +349,13 @@ function randFromRange (low, high) {
 // =================
 
 function printMessage (msg, clr, room) {
-	room.sendNotification(
+	return room.sendNotification(
 		msg, 
 		{
 			color : clr,
 			format : 'html'
 		});
+	
 }
 
 // PAT'S RANDOM, UNSORTED FUNCTIONS
@@ -493,6 +478,7 @@ if (!JSdict.prototype.getVal) {
 // Updates value of a key
 if (!JSdict.prototype.update) {
 	JSdict.prototype.update = function (key, val) {
+		console.log("Saving dictionary first");
 		saveData(dict);
 		if (key == null || val == null) {
 			return "Key or Value cannot be null";
@@ -521,6 +507,8 @@ if (!JSdict.prototype.update) {
 // Adds a unique key value pair
 if (!JSdict.prototype.add) {
 	JSdict.prototype.add = function (key, val) {
+		console.log("Saving dictionary first");
+		saveData(dict);
 		// Allow only strings or numbers as keys
 		if (typeof(key) == "number" || typeof(key) == "string") {
 			if (key == null || val == null) {
