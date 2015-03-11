@@ -168,14 +168,19 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 		var totalString = "";
 		var total = 0;
 		if (!this.match[1] && !this.match[2] && !this.match[3]) {
+			var diceArray;
 			playerDiceType = levelDice[dict.getVal(this.sender.name)[0][4]];
-			var diceArray = playerDiceType.split("d");
+			diceArray = playerDiceType.split("d");
 			numofdice = parseInt(diceArray[0]);
 			numofsides = parseInt(diceArray[1]);
 			var rand = (Math.floor(Math.random() * parseInt(numofsides)) + 1);
 			totalString = rand.toString() + " ";
 			total = rand;
 		} else {
+			
+			numofdice = parseInt(this.match[1]);
+			numofsides = parseInt(this.match[2]);
+			console.log("NUMOFDICE: " + numofdice);
 			for (var i = 0; i < numofdice; i++) {
 				var loopRand = (Math.floor(Math.random() * parseInt(numofsides)) + 1);
 				totalString = totalString + loopRand + " ";
@@ -198,8 +203,16 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 				format : 'text'
 			});
 		}
-		var diceArray = playerDiceType.split("d");
-		if (((this.sender.name == underattack) && (this.match[1] == parseInt(diceArray[0])) && (this.match[2] == parseInt(diceArray[1]))) || (this.sender.name == underattack) && (numofdice == parseInt(diceArray[0])) && (numofsides == parseInt(diceArray[1]))) {
+		if (playerDiceType){
+			var diceArray = playerDiceType.split("d");
+			
+		}else{
+			var diceArray = [0,0];
+			diceArray[0]= numofdice;
+			diceArray[1] = numofsides;
+		}
+		
+		if (((this.sender.name == underattack) && (numofdice == parseInt(diceArray[0])) && (numofsides == parseInt(diceArray[1]))) ||((this.sender.name == underattack) && (this.match[1] == parseInt(diceArray[0])) && (this.match[2] == parseInt(diceArray[1]))) ) {
 			clearTimeout(monsterTimer);
 			if (total > hp) {
 				if (total == 20) (amountofExp = amountofExp * 2);
