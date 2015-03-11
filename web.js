@@ -366,31 +366,41 @@ function checkPlayer(playername){
 }
 
 function classCast(playername){
-	var abilityCheck = ((Math.floor(Math.random() * 7) + 1) == 5)
+	var abilityCheck = randomHelper(7) == 5;
 	var mainArray = dict.getVal(playername);
 	var playerClass = mainArray[2];
-	switch (playerClass[0]){
-		case "Cleric":
-			break;
-		case "Mage":
-			break;
-		case "Princess":
-			break;
-		case "Warrior":
-			break;
-		default:
-			return;
+	// 1 ability for now
+	if (abilityCheck){
+		switch (playerClass[0]){
+			case "Cleric":
+			var healPower = randomHelper(5+mainArray[0][4]);
+				sendRoomMessage(playername + " casted <b>Self Renew</b> and was healed for <b>" + healPower.toString() + "</b>!");
+				stats = mainArray[0];
+				stats[0] = stats[0] + healPower;
+				mainArray[0] = stats;
+				dict.update(playername, mainArray);
+				break;
+			case "Mage":
+				break;
+			case "Princess":
+				break;
+			case "Warrior":
+				break;
+			default:
+				return;
 		
 		
+		}
 	}
-	
-	
+	return;
 }
 
 function randomHelper(upperbound){
 	return (Math.floor(Math.random() * upperbound) + 1)
 }
-
+function sendRoomMessage(message, room){
+	return room.sendNotification(message);
+}
 function saveData(file) {
 	ser.registerKnownType("JSDICT", JSdict);
 	var data = ser.stringify({
