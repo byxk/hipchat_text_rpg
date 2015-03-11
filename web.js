@@ -1,6 +1,7 @@
 // data: [ARRAY[HP,PEPPERPOINTS,SEASONINGMOD,EXP, LEVEL],ARRAY[ITEMS],ARRAY[ARMOUR]]
 var typesOfMonsters = ["globin", "poring", "Ghostly Josh", "Headless Jimmy", "Spooky Jennie", "Playboy Rob", "Mad Patrick"];
 var foodDrops = ["an Apple", "a Potato", "Jimmy's sandwich", "Josh's bacon", "Jennie's fruit punch", "Rob's pills", "Patrick's JapaDog"];
+var classTypes = ["Cleric", "Mage", "Princess", "Warrior"];
 var levelDice =["1d20", "1d20", "1d30", "1d30", "1d40"];
 var monsterLevelDice = [20,30,40,50,60];
 var ack = require('ac-koa').require('hipchat');
@@ -38,12 +39,33 @@ if (process.env.DEV_KEY) {
 String.prototype.startsWith = function(prefix) {
     return this.indexOf(prefix) === 0;
 }
+addon.webhook('room_message', /^\/class\s*([a-z]+)?/i, function  * () {
+	console.log(this.match[1]);
+	if (this.match[1] == "plsgivemesomethinggood"){
+		mainArray = dict.getVal(this.sender.name);
+		pclass = mainArray[2];
+		
+		if (pclass[0] != "") return printMessage(this.sender.name +"'s class has been chosen already. You cannot change destiny.", "red", this.roomClient);
+		chosenClass = classTypes[Math.floor(Math.random() * classTypes.length)];
+		printMessage(this.sender.name + "'s rolls the destiny dice and is chosen as a......<b>" + chosenClass + "</b>!!!!", "green", this.roomClient);
+		
+		pclass[0] = chosenClass;
+		mainArray[2] = pclass;
+		dict.update(this.sender.name, mainArray);
+		return;
+		
+	}else{
+		printMessage("Available classes: Cleric, Mage, Warrior, Princess. Choose with /class plsgivemesomethinggood", "yellow", this.roomClient);
+	}
+		
+	
+});
 addon.webhook('room_message', /^[^\/].*/i, function  * () {
 	if (alreadyattacking) {
 		return;
 	}
 	var doweatk = (Math.floor(Math.random() * 20) + 1)
-	if (parseInt(doweatk) == 4) {
+	if (parseInt(doweatk) == 4 || this.sender.name == "Patrick Tseng") {
 		
 		saveData(dict);
 		initPlayer(this.sender.name);
@@ -93,8 +115,8 @@ addon.webhook('room_message', /^\/stats/i, function  * () {
 	initPlayer(this.sender.name);
 	mainArray = dict.getVal(this.sender.name);
 	stats = mainArray[0];
-
-	yield this.roomClient.sendNotification("@" + this.sender.name + "'s hp: " + stats[0].toString() + " | Level: " + stats[4] + " | EXP: " + stats[3] + " | pepper: " + stats[1].toString() + " | seasoning modifier: " + stats[2].toString(), {
+	pclass = mainArray[2];
+	yield this.roomClient.sendNotification("@" + this.sender.name + "'s stats | class: " + pclass[0] + " | hp: " + stats[0].toString() + " | Level: " + stats[4] + " | EXP: " + stats[3] + " | pepper: " + stats[1].toString() + " | seasoning modifier: " + stats[2].toString(), {
 		color : 'green',
 		format : 'text'
 	});
@@ -174,8 +196,10 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 			numofdice = parseInt(diceArray[0]);
 			numofsides = parseInt(diceArray[1]);
 			var rand = (Math.floor(Math.random() * parseInt(numofsides)) + 1);
-			totalString = rand.toString() + " ";
-			total = rand;
+			console.log("nums" + numofsides);
+			//totalString = rand.toString() + " ";
+			total = rollDice(numofdice, numofsides, 0);
+			console.log(total);
 		} else {
 			
 			numofdice = parseInt(this.match[1]);
@@ -287,8 +311,8 @@ addon.webhook('room_message', /^\/attack/i, function * () {
 // ======================
 
 // USAGE: Print this string with "@UserX: " appended to the front.
-function formatRoll (num, sides, mod, res) {
-	var pre_str = "You rolled " + num + "d" + sides + "+" + mod + ": ";
+function formatRoll (num, sides, mod, res, playername) {
+	var pre_str = playername + " rolled " + num + "d" + sides + "+" + mod + ": ";
 	
 	var res_str = "(";
 	for (var i = 1; i < num+1; i++) {
@@ -328,7 +352,7 @@ function rollDice (num, sides, mod) {
 
 	for (i = 1; i < num + 1; i++) {
 		res[i] = randFromRange(1, sides);
-		res[0] += ret[i];
+		res[0] += res[i];
 	}
 	return res;
 }
@@ -346,7 +370,7 @@ function printMessage (msg, clr, room) {
 		msg, 
 		{
 			color : clr,
-			format : 'text'
+			format : 'html'
 		});
 }
 
@@ -361,7 +385,8 @@ function sleep (milliSeconds) {
 function initPlayer(playername) {
 	stats = [100, 1, 0, 0, 0, 0];
 	inventory = ["Sealed rusty pickaxe", "", ""];
-	mainArray = [stats, inventory];
+	playerClass = ["","","","",""];
+	mainArray = [stats, inventory,playerClass];
 	if (dict.getVal(playername) == "Key not found!") {
 		console.log("Creating Player: " + playername);
 		dict.add(playername, mainArray);
@@ -425,9 +450,6 @@ function saveData(file) {
 			console.log(err);
 		} else {
 			console.log("The file was saved!");
-			load = fs.readFileSync("data", 'utf8');
-			var deserialized = ser.parse(load);
-			console.log(deserialized.dict);
 		}
 	});
 }
@@ -436,10 +458,16 @@ function saveData(file) {
 // ===========
 
 function loadData() {
-	ser.registerKnownType("JSDICT", JSdict);
-	var load = fs.readFileSync("data", 'utf8');
-	var deserialized = ser.parse(load);
-	dict = deserialized.dict;
+	try {
+		ser.registerKnownType("JSDICT", JSdict);
+		var load = fs.readFileSync("data", 'utf8');
+		var deserialized = ser.parse(load);
+		dict = deserialized.dict;
+	}
+	catch(err) {
+		console.log(err);
+	}
+
 }
 function JSdict() {
 	this.Keys = [];
@@ -466,6 +494,7 @@ if (!JSdict.prototype.getVal) {
 // Updates value of a key
 if (!JSdict.prototype.update) {
 	JSdict.prototype.update = function (key, val) {
+		saveData(dict);
 		if (key == null || val == null) {
 			return "Key or Value cannot be null";
 		}
