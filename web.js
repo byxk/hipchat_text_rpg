@@ -278,7 +278,7 @@ function formatRoll (num, sides, mod, res) {
 	var pre_str = "You rolled " + num + "d" + sides + "+" + mod + ": ";
 	
 	var res_str = "(";
-	for (int i = 1; i < num+1; i++) {
+	for (var i = 1; i < num+1; i++) {
 		if (i == 1) {
 			res_str += res[i];
 		} else {
@@ -328,8 +328,8 @@ function randFromRange (low, high) {
 // HIPCHAT FUNCTIONS
 // =================
 
-function printMessage (msg, clr) {
-	yield this.roomClient.sendNotification(
+function printMessage (msg, clr, room) {
+	room.sendNotification(
 		msg, 
 		{
 			color : clr,
