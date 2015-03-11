@@ -65,7 +65,7 @@ addon.webhook('room_message', /^[^\/].*/i, function  * () {
 		return;
 	}
 	var doweatk = (Math.floor(Math.random() * 20) + 1)
-	if (parseInt(doweatk) == 4 || this.sender.name == "Patrick Tseng") {
+	if (parseInt(doweatk) == 4) {
 		
 		saveData(dict);
 		initPlayer(this.sender.name);
@@ -197,9 +197,8 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 			numofsides = parseInt(diceArray[1]);
 			var rand = (Math.floor(Math.random() * parseInt(numofsides)) + 1);
 			console.log("nums" + numofsides);
-			//totalString = rand.toString() + " ";
-			total = rollDice(numofdice, numofsides, 0);
-			console.log(total);
+			totalString = rand.toString() + " ";
+			total = rand;
 		} else {
 			
 			numofdice = parseInt(this.match[1]);
