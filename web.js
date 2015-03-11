@@ -1,6 +1,8 @@
 // data: [ARRAY[HP,PEPPERPOINTS,SEASONINGMOD,EXP, LEVEL],ARRAY[ITEMS],ARRAY[ARMOUR]]
 var typesOfMonsters = ["globin", "poring", "Ghostly Josh", "Headless Jimmy", "Spooky Jennie", "Playboy Rob", "Mad Patrick"];
 var foodDrops = ["an Apple", "a Potato", "Jimmy's sandwich", "Josh's bacon", "Jennie's fruit punch", "Rob's pills", "Patrick's JapaDog"];
+var levelDice =["1d20", "1d30", "1d40", "1d50", "1d60"];
+var monsterLevelDice = [20,30,40,50,60];
 var ack = require('ac-koa').require('hipchat');
 var pkg = require('./package.json');
 var Serializer = require("backpack-node").system.Serializer;
@@ -200,7 +202,7 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 				});
 				stats = dict.getVal(this.sender.name)[0];
 				stats[3] = stats[3] + amountofExp;
-				stats[4] = Math.floor(stats[3] / 100);
+				stats[4] = Math.floor(stats[3] / 20);
 				amountofExp = 0;
 				stats[2] = 0;
 
