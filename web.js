@@ -295,7 +295,8 @@ function formatRoll (num, sides, mod, res) {
 }
 
 function rollDice (num, sides, mod) {
-	var res = 0;
+	var res = [];
+	res.push(0);
 
 	// default values
 	if (!num) {
@@ -310,11 +311,12 @@ function rollDice (num, sides, mod) {
 
 	// sanity check
 	if (num > 100) {
-		return -1;
+		res[0] = -1;
+		return res;
 	}
 
 	for (i = 1; i < num + 1; i++) {
-		res[i] = randFromRange(1, sides);
+		res.push(randFromRange(1, sides));
 		res[0] += ret[i];
 	}
 	return res;
