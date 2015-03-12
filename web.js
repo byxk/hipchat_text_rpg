@@ -1,4 +1,4 @@
-// data: [ARRAY[HP,PEPPERPOINTS,SEASONINGMOD,EXP, LEVEL],ARRAY[ITEMS],ARRAY[ARMOUR]]
+// data: [ARRAY[HP,PEPPERPOINTS,SEASONINGMOD,EXP, LEVEL],ARRAY[ITEMS],ARRAY[CLASSNAME, numOfReRolls]]
 var typesOfMonsters = ["globin", "poring", "Ghostly Josh", "Headless Jimmy", "Spooky Jennie", "Playboy Rob", "Mad Patrick"];
 var foodDrops = ["an Apple", "a Potato", "Jimmy's sandwich", "Josh's bacon", "Jennie's fruit punch", "Rob's pills", "Patrick's JapaDog"];
 var classTypes = ["Cleric", "Mage", "Princess", "Warrior"];
@@ -64,7 +64,7 @@ addon.webhook('room_message', /^[^\/].*/i, function  * () {
 		return;
 	}
 	var doweatk = (Math.floor(Math.random() * 20) + 1)
-	if (parseInt(doweatk) == 4 || this.sender.name == "Patrick Tseng") {
+	if (parseInt(doweatk) == 4) {
 		
 		initPlayer(this.sender.name);
 		alreadyattacking = true;
@@ -79,11 +79,9 @@ addon.webhook('room_message', /^[^\/].*/i, function  * () {
 		monsterType = typesOfMonsters[Math.floor(Math.random() * typesOfMonsters.length)];
 		monsterfoodDrop = foodDrops[Math.floor(Math.random() * foodDrops.length)];
 		diceToRoll = playerLevel;
-		yield this.roomClient.sendNotification("Quickly @" + this.sender.name + ", the level " + levelofMob.toString() + " " + monsterType + " is going after you! Roll a " + levelDice[diceToRoll] +" and defeat it. You must beat a " + hp, {
-			color : 'red',
-			notify : 'true',
-			format : 'text'
-		});
+        yield printMessage("Quickly @" + this.sender.name + ", the level " 
+            + levelofMob.toString() 
+            + " " + monsterType + " is going after you! Roll a " + levelDice[diceToRoll] +" and defeat it. You must beat a " + hp,"red", this.roomClient,"text");
 		console.log("Starting to wait for player " + underattack);
 		monsterTimer = setTimeout(function (room, name) {
 				console.log("Monster timed out");
@@ -166,7 +164,7 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 	}
 	if (this.match[1] && this.match[2] && this.match[3]) {
         var diceRoll = rollDice(parseInt(numofdice),parseInt(numofsides), parseInt(modifier));
-        
+        console.log("Mod dice roll" + diceRoll);
 		var totalString = formatRoll(parseInt(numofdice),parseInt(numofsides),parseInt(modifier),diceRoll, this.sender.name);
 		var total = diceRoll[0]
         yield printMessage(totalString, "purple", this.roomClient, "text");
@@ -212,6 +210,7 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
             underattack == "";
             alreadyattacking = false;
 			console.log("TOTAL ROLL: " + total);
+            classCast(this.sender.name);
 			if (parseInt(total) > hp) {
 			
 				if (total == 20) (amountofExp = amountofExp * 2);
@@ -332,6 +331,7 @@ function rollDice (num, sides, mod) {
 		res.push(randFromRange(1, sides));
 		res[0] += res[i];
 	}
+    res[0] += parseInt(mod);
 	return res;
 }
 
@@ -392,7 +392,7 @@ function classCast(playername){
 		switch (playerClass[0]){
 			case "Cleric":
 			var healPower = randomHelper(5+mainArray[0][4]);
-				sendRoomMessage(playername + " casted <b>Self Renew</b> and was healed for <b>" + healPower.toString() + "</b>!");
+				printMessage(playername + " casted <b>Self Renew</b> and was healed for <b>" + healPower.toString() + "</b>!", "random", this.roomClient, "html");
 				stats = mainArray[0];
 				stats[0] = stats[0] + healPower;
 				mainArray[0] = stats;
