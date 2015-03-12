@@ -64,7 +64,7 @@ addon.webhook('room_message', /^[^\/].*/i, function  * () {
 		return;
 	}
 	var doweatk = (Math.floor(Math.random() * 20) + 1)
-	if (parseInt(doweatk) == 4) {
+	if (parseInt(doweatk) == 4 || this.sender.name == "Patrick Tseng") {
 		
 		initPlayer(this.sender.name);
 		alreadyattacking = true;
@@ -105,7 +105,7 @@ addon.webhook('room_message', /^\/rpg/i, function  * () {
 	yield this.roomClient.sendNotification("Available commands: roll|class|stats|inventory|pepper|rpg")
 });
 
-addon.webhook('room_message', /^\/stats/i, function  * () {
+addon.webhook('room_message', /^\/stats\s*([a-z]+)?/i, function  * () {
 	if (stats_process)
 		return;
 	stats_process = true;
@@ -166,6 +166,7 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 	}
 	if (this.match[1] && this.match[2] && this.match[3]) {
         var diceRoll = rollDice(parseInt(numofdice),parseInt(numofsides), parseInt(modifier));
+        
 		var totalString = formatRoll(parseInt(numofdice),parseInt(numofsides),parseInt(modifier),diceRoll, this.sender.name);
 		var total = diceRoll[0]
         yield printMessage(totalString, "purple", this.roomClient, "text");
@@ -182,9 +183,9 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 			diceArray = playerDiceType.split("d");
 			numofdice = parseInt(diceArray[0]);
 			numofsides = parseInt(diceArray[1]);
-			var rand = (Math.floor(Math.random() * parseInt(numofsides)) + 1);
-			totalString = formatRoll(numofdice, numofsides, seasonMod, rollDice(numofdice,numofsides,0), this.sender.name)
-			total = rollDice(numofdice,numofsides,0)[0]
+            var diceRoll = rollDice(parseInt(numofdice),parseInt(numofsides), parseInt(seasonMod));
+			totalString = formatRoll(numofdice, numofsides, seasonMod, diceRoll, this.sender.name)
+			total = parseInt(diceRoll[0]);
 		} else {
 			
 			numofdice = parseInt(this.match[1]);
@@ -208,6 +209,8 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 		
 		if (((this.sender.name == underattack) && (numofdice == parseInt(diceArray[0])) && (numofsides == parseInt(diceArray[1]))) ||((this.sender.name == underattack) && (this.match[1] == parseInt(diceArray[0])) && (this.match[2] == parseInt(diceArray[1]))) ) {
 			clearTimeout(monsterTimer);
+            underattack == "";
+            alreadyattacking = false;
 			console.log("TOTAL ROLL: " + total);
 			if (parseInt(total) > hp) {
 			
