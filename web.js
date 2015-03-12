@@ -2,7 +2,6 @@
 var typesOfMonsters = ["globin", "poring", "Ghostly Josh", "Headless Jimmy", "Spooky Jennie", "Playboy Rob", "Mad Patrick"];
 var foodDrops = ["an Apple", "a Potato", "Jimmy's sandwich", "Josh's bacon", "Jennie's fruit punch", "Rob's pills", "Patrick's JapaDog"];
 var classTypes = ["Cleric", "Mage", "Princess", "Warrior"];
-var levelDice =["1d20", "1d20", "1d30", "1d30", "1d40","1d40","1d50","1d50","1d60"];
 var monsterLevelDice = [20,30,40,50,60];
 var ack = require('ac-koa').require('hipchat');
 var pkg = require('./package.json');
@@ -83,8 +82,10 @@ addon.webhook('room_message', /^[^\/].*/i, function  * () {
 		// lets get player level
 		var playerLevel = dict.getVal(this.sender.name)[0][4];
 		levelofMob = (Math.floor(Math.random() * (playerLevel + 1)) + 1)
-		attackdmg = (Math.floor(Math.random() * (levelofMob *5)) + 1);
-		hp = (Math.floor(Math.random() * (levelofMob *10)) + (levelofMob * 2))
+		// attackdmg = (Math.floor(Math.random() * (levelofMob *5)) + levelofMob);
+        // roll a xd8
+        attackdmg = rollDice(levelofMob,8, 0)[0];
+		hp = (Math.floor(Math.random() * 20) + (levelofMob + 2))
 		chanceOfFaith = ((Math.floor(Math.random() * 4) + 1) == 2);
 		amountofExp = (Math.floor(Math.random() * 10) + 0);
 		monsterType = typesOfMonsters[Math.floor(Math.random() * typesOfMonsters.length)];
@@ -92,7 +93,7 @@ addon.webhook('room_message', /^[^\/].*/i, function  * () {
 		diceToRoll = playerLevel;
         yield printMessage("Quickly @" + this.sender.name + ", the level " 
             + levelofMob.toString() 
-            + " " + monsterType + " is going after you! Roll a " + levelDice[diceToRoll] +" and defeat it. You must beat a " + hp,"red", this.roomClient,"text");
+            + " " + monsterType + " is going after you! Roll a 1d20 and defeat it. You must beat a " + hp,"red", this.roomClient,"text");
 		console.log("Starting to wait for player " + underattack);
 		monsterTimer = setTimeout(function (room, name) {
 				console.log("Monster timed out");
@@ -185,13 +186,11 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 		var totalString = "";
 		var total = 0;
 		if (!this.match[1] && !this.match[2] && !this.match[3]) {
-			var diceArray;
+
 			var mainArray = dict.getVal(this.sender.name);
 			var seasonMod = mainArray[0][2];
-			playerDiceType = levelDice[dict.getVal(this.sender.name)[0][4]];
-			diceArray = playerDiceType.split("d");
-			numofdice = parseInt(diceArray[0]);
-			numofsides = parseInt(diceArray[1]);
+			numofdice = 1;
+			numofsides = 20;
             var diceRoll = rollDice(parseInt(numofdice),parseInt(numofsides), parseInt(seasonMod));
 			totalString = formatRoll(numofdice, numofsides, seasonMod, diceRoll, this.sender.name)
 			total = parseInt(diceRoll[0]);
@@ -207,16 +206,8 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 		}
 		yield printMessage(totalString, "purple", this.roomClient);
 
-		if (playerDiceType){
-			var diceArray = playerDiceType.split("d");
-			
-		}else{
-			var diceArray = [0,0];
-			diceArray[0]= numofdice;
-			diceArray[1] = numofsides;
-		}
 		
-		if (((this.sender.name == underattack) && (numofdice == parseInt(diceArray[0])) && (numofsides == parseInt(diceArray[1]))) ||((this.sender.name == underattack) && (this.match[1] == parseInt(diceArray[0])) && (this.match[2] == parseInt(diceArray[1]))) ) {
+		if (((this.sender.name == underattack) && (numofdice == 1) && (numofsides == 20 ))) {
 			clearTimeout(monsterTimer);
             underattack == "";
             alreadyattacking = false;
