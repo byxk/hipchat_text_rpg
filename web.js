@@ -21,6 +21,7 @@ var amountofExp = false;
 var monsterType = "";
 var monsterfoodDrop = "";
 var playerDiceType;
+var increaseMonsterChance = new Array();
 var diceToRoll = 0;
 var levelofMob = 1;
 var prayer_process = false;
@@ -73,8 +74,11 @@ addon.webhook('room_message', /^[^\/].*/i, function  * () {
 	if (alreadyattacking) {
 		return;
 	}
-	var doweatk = (Math.floor(Math.random() * 20) + 1)
-	if (parseInt(doweatk) == 4) {
+    if (!increaseMonsterChance[this.sender.name]){
+        increaseMonsterChance[this.sender.name] = 1;
+    }
+	var doweatk = randFromRange(increaseMonsterChance[this.sender.name], 20);
+	if (parseInt(doweatk) == 15) {
 		
 		initPlayer(this.sender.name);
 		alreadyattacking = true;
@@ -108,8 +112,9 @@ addon.webhook('room_message', /^[^\/].*/i, function  * () {
 				mainArray[0] = stats;
 				dict.update(name, mainArray);
 			}, 30000, this.roomClient, this.sender.name);
+    }
+    increaseMonsterChance[this.sender.name] = 1;
 
-	}
 
 	return;
 });
@@ -224,7 +229,7 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
             underattack == "";
             alreadyattacking = false;
 			console.log("TOTAL ROLL: " + total);
-            classCast(this.sender.name);
+            classCast(this.sender.name, this.roomClient);
 			if (parseInt(total) > hp) {
 			
 				if (total == 20) (amountofExp = amountofExp * 2);
@@ -397,7 +402,7 @@ function checkPlayer(playername){
 	}		
 }
 
-function classCast(playername){
+function classCast(playername, roomClient){
 	var abilityCheck = randFromRange(1,3) == 2;
 	var mainArray = dict.getVal(playername);
 	var playerClass = mainArray[2];
@@ -406,7 +411,7 @@ function classCast(playername){
 		switch (playerClass[0]){
 			case "Cleric":
 			    var healPower = randFromRange(1,mainArray[0][4]);
-				printMessage(playername + " casted <b>Self Renew</b> and was healed for <b>" + healPower.toString() + "</b>!", "random", this.roomClient, "html");
+				printMessage(playername + " casted <b>Self Renew</b> and was healed for <b>" + healPower.toString() + "</b>!", "random", roomClient, "html");
 				stats = mainArray[0];
 				stats[0] = stats[0] + healPower;
 				mainArray[0] = stats;
@@ -414,7 +419,7 @@ function classCast(playername){
 				break;
 			case "Mage":
                 var magicPower = randomHelper(3, mainArray[0][4]);
-                printMessage(playername + " peppered <b>magic missiles</b> for the next monster encounter and added <b>" + magicPower.toString() + "</b> to seasoning modifier.", "random", this.roomClient, "html");
+                printMessage(playername + " peppered <b>magic missiles</b> for the next monster encounter and added <b>" + magicPower.toString() + "</b> to seasoning modifier.", "random", roomClient, "html");
                 stats = mainArray[0];
                 stats[2] = stats[2] + magicPower;
                 mainArray[0] = stats;
@@ -574,5 +579,13 @@ if (!JSdict.prototype.remove) {
 		}
 	}
 }
+
 loadData();
 app.listen();
+var timer = setInterval(function() {
+ console.log("Adding 1 to everyone") 
+ for(var i in increaseMonsterChance) {
+    increaseMonsterChance[i] += 1;
+ }
+
+}, 180000)
