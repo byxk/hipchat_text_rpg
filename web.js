@@ -45,7 +45,8 @@ addon.webhook('room_message', /^\/class\s*([a-z]+)?/i, function  * () {
 		mainArray = dict.getVal(this.sender.name);
 		pclass = mainArray[2];
 		
-		if (pclass[0] != "") return printMessage(this.sender.name +"'s class has been chosen already. You cannot change destiny.", "red", this.roomClient);
+		if (parseInt(pclass[1]) == 0) return printMessage(this.sender.name +"'s class has been chosen already. You cannot change destiny.", "red", this.roomClient);
+        pclass[1] -= 1;
 		chosenClass = classTypes[Math.floor(Math.random() * classTypes.length)];
 		printMessage(this.sender.name + "'s rolls the destiny dice and is chosen as a......<b>" + chosenClass + "</b>!!!!", "green", this.roomClient);
 		
@@ -55,7 +56,17 @@ addon.webhook('room_message', /^\/class\s*([a-z]+)?/i, function  * () {
 		return;
 		
 	}else{
-		printMessage("Available classes: Cleric, Mage, Warrior, Princess. Choose with /class plsgivemesomethinggood", "yellow", this.roomClient);
+        var mainArray = dict.getVal(this.sender.name);
+        var pclass = mainArray[2];
+        var rerolls = pclass[1];
+        if (pclass[1] == "" && pclass[1] != 0){ 
+            console.log("REROLLS: " + rerolls);
+            pclass[1] = 1;
+        }
+        mainArray[2] = pclass;
+        dict.update(this.sender.name, mainArray);
+		printMessage("Available classes: Cleric, Mage, Warrior, Princess. Choose with /class plsgivemesomethinggood. " + 
+            this.sender.name + " has " + pclass[1] + " reroll(s) left!", "yellow", this.roomClient);
 	}
 			
 });
@@ -73,7 +84,7 @@ addon.webhook('room_message', /^[^\/].*/i, function  * () {
 		var playerLevel = dict.getVal(this.sender.name)[0][4];
 		levelofMob = (Math.floor(Math.random() * (playerLevel + 1)) + 1)
 		attackdmg = (Math.floor(Math.random() * (levelofMob *5)) + 1);
-		hp = (Math.floor(Math.random() * (levelofMob *10)) + 1)
+		hp = (Math.floor(Math.random() * (levelofMob *10)) + (levelofMob * 2))
 		chanceOfFaith = ((Math.floor(Math.random() * 4) + 1) == 2);
 		amountofExp = (Math.floor(Math.random() * 10) + 0);
 		monsterType = typesOfMonsters[Math.floor(Math.random() * typesOfMonsters.length)];
