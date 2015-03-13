@@ -151,6 +151,7 @@ addon.webhook('room_message', /^\/stats\s*([a-z]+)?/i, function  * () {
 	mainArray = dict.getVal(this.sender.name);
 	stats = mainArray[0];
 	pclass = mainArray[2];
+    /**
     var tableString = "<table><tr><th>Stats</th><th></th><th>Value</th></tr>" +
           "<tr><td>Class</td><td>  </td><td>" + pclass[0] + "</td></tr>" +
           "<tr><td>HP</td><td>  </td><td>" + stats[0].toString() + "</td></tr>" +
@@ -161,7 +162,10 @@ addon.webhook('room_message', /^\/stats\s*([a-z]+)?/i, function  * () {
           "</table>";
     yield printMessage("@" + this.sender.mention_name + "'s stats:", "green", this.roomClient, "text");
     printMessage(tableString, "green", this.roomClient, "html");
-	//yield this.roomClient.sendNotification("@" + this.sender.mention_name + "'s stats | class: " + pclass[0] + " | hp: " + stats[0].toString() + " | Level: " + stats[4] + " | EXP: " + stats[3] + " | pepper: " + stats[1].toString() + " | seasoning modifier: " + stats[2].toString(), {
+    **/
+
+
+	yield this.roomClient.sendNotification("@" + this.sender.mention_name + "'s stats | class: " + pclass[0] + " | hp: " + stats[0].toString() + " | Level: " + stats[4] + " | EXP: " + stats[3] + " | pepper: " + stats[1].toString() + " | seasoning modifier: " + stats[2].toString(), {
 	//	color : 'green',
 	//	format : 'text'
 	//});
