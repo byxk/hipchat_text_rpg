@@ -166,9 +166,9 @@ addon.webhook('room_message', /^\/stats\s*([a-z]+)?/i, function  * () {
 
 
 	yield this.roomClient.sendNotification("@" + this.sender.mention_name + "'s stats | class: " + pclass[0] + " | hp: " + stats[0].toString() + " | Level: " + stats[4] + " | EXP: " + stats[3] + " | pepper: " + stats[1].toString() + " | seasoning modifier: " + stats[2].toString(), {
-	//	color : 'green',
-	//	format : 'text'
-	//});
+		color : 'green',
+		format : 'text'
+	});
 	stats_process = false;
 });
 
