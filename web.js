@@ -9,6 +9,7 @@ var Serializer = require("backpack-node").system.Serializer;
 var ser = new Serializer();
 var fs = require('fs');
 var app = ack(pkg);
+var http = require('http');
 var monsterTimer;
 var alreadyattacking = false;
 var underattack = "";
@@ -27,7 +28,7 @@ var levelofMob = 1;
 var prayer_process = false;
 var inventory_process = false;
 var stats_process = false;
-
+var peopleInRoom;
 var addon = app.addon()
 	.hipchat()
 	.allowRoom(true)
@@ -78,7 +79,8 @@ addon.webhook('room_message', /^[^\/].*/i, function  * () {
         increaseMonsterChance[this.sender.name] = 1;
     }
 	var doweatk = randFromRange(increaseMonsterChance[this.sender.name], 20);
-	if (parseInt(doweatk) == 15) {
+    console.log("Monster enc roll: " + doweatk.toString());
+	if (parseInt(doweatk) == 17 || parseInt(doweatk) == 5) {
 		
 		initPlayer(this.sender.name);
 		alreadyattacking = true;
@@ -298,6 +300,25 @@ addon.webhook('room_message', /^\/attack/i, function * () {
 
 });
 
+function getAllPeople(people){
+var LineByLineReader = require('line-by-line'),
+    lr = new LineByLineReader('people.txt');
+
+lr.on('error', function (err) {
+    // 'err' contains error object
+});
+
+lr.on('line', function (line) {
+    increaseMonsterChance[line] = 1;
+    console.log(line);
+});
+
+lr.on('end', function () {
+    // All lines are read, file is closed now.
+});
+}
+
+
 // DICE ROLLING FUNCTIONS
 // ======================
 
@@ -403,14 +424,16 @@ function checkPlayer(playername){
 }
 
 function classCast(playername, roomClient){
-	var abilityCheck = randFromRange(1,3) == 2;
+	var abilityCheck = randFromRange(1,3);
+    console.log("Ability Check: " + abilityCheck.toString());
+
 	var mainArray = dict.getVal(playername);
 	var playerClass = mainArray[2];
 	// 1 ability for now
-	if (abilityCheck){
+	if (abilityCheck == 2){
 		switch (playerClass[0]){
 			case "Cleric":
-			    var healPower = randFromRange(1,mainArray[0][4]);
+			    var healPower = randFromRange(1,mainArray[0][4]*2);
 				printMessage(playername + " casted <b>Self Renew</b> and was healed for <b>" + healPower.toString() + "</b>!", "random", roomClient, "html");
 				stats = mainArray[0];
 				stats[0] = stats[0] + healPower;
@@ -418,7 +441,7 @@ function classCast(playername, roomClient){
 				dict.update(playername, mainArray);
 				break;
 			case "Mage":
-                var magicPower = randomHelper(3, mainArray[0][4]);
+                var magicPower = randomHelper(3, mainArray[0][4]*2);
                 printMessage(playername + " peppered <b>magic missiles</b> for the next monster encounter and added <b>" + magicPower.toString() + "</b> to seasoning modifier.", "random", roomClient, "html");
                 stats = mainArray[0];
                 stats[2] = stats[2] + magicPower;
@@ -582,10 +605,16 @@ if (!JSdict.prototype.remove) {
 
 loadData();
 app.listen();
+getAllPeople(peopleInRoom);
+console.log(peopleInRoom);
+
 var timer = setInterval(function() {
  console.log("Adding 1 to everyone") 
  for(var i in increaseMonsterChance) {
-    increaseMonsterChance[i] += 1;
+    if (increaseMonsterChance[i] <= 15)
+        increaseMonsterChance[i] += 1;
+    console.log(i + "'s chances are now " + increaseMonsterChance[i]);
  }
 
-}, 180000)
+}, 30000)
+

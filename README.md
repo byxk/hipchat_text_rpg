@@ -1,14 +1,16 @@
 # hipchat_text_rpg
-A plugin for hipchat.
+A plugin for hipchat that encourages communication between team-members! (Right?!)
 
 Features:
 * Random monster attacks
 * Dice roll with DnD style arguments
 * Leveling system
+* Dynamic encounter system
+* and lots of other random useless features!
 
 How to install:
 * Download Vagrant and Virtual Box
-* Find the sample plugin for hipchat, and replace Web.js with this version.
+* Find the sample plugin for hipchat, and replace web.js with this version.
 * npm install backpack-save
 * Install plugin via URL
 
