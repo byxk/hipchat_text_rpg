@@ -12,6 +12,10 @@ How to install:
 * Download Vagrant and Virtual Box
 * Find the sample plugin for hipchat, and replace web.js with this version.
 * npm install backpack-save
+* Run plugin via npm run web-dev
+* Wait for error messages indicating missing modules cuz of terrible docs
+* Install more modules.
+* Run again
 * Install plugin via URL
 
 (Official release will only include dice roll features)
