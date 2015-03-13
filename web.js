@@ -1,4 +1,4 @@
-// data: [ARRAY[HP,PEPPERPOINTS,SEASONINGMOD,EXP, LEVEL],ARRAY[ITEMS],ARRAY[CLASSNAME, numOfReRolls]]
+// data: [ARRAY[HP,PEPPERPOINTS,SEASONINGMOD,EXP, LEVEL],ARRAY[ITEMS],ARRAY[CLASSNAME, numOfReRolls, target]]
 var typesOfMonsters = ["globin", "poring", "Ghostly Josh", "Headless Jimmy", "Spooky Jennie", "Playboy Rob", "Mad Patrick"];
 var foodDrops = ["an Apple", "a Potato", "Jimmy's sandwich", "Josh's bacon", "Jennie's fruit punch", "Rob's pills", "Patrick's JapaDog"];
 var classTypes = ["Cleric", "Mage", "Princess", "Warrior"];
@@ -40,6 +40,25 @@ if (process.env.DEV_KEY) {
 String.prototype.startsWith = function(prefix) {
     return this.indexOf(prefix) === 0;
 }
+
+addon.webhook('room_message', /^\/target/i, function  * () {
+    var mainArray = dict.getVal(this.sender.name);
+    var pclass = mainArray[2];
+    var className = pclass[0];
+    console.log(dict.Keys.length);
+    if (className != "Cleric"){
+        return yield printMessage("Must be a {Cleric} to use this feature.", "red", this.roomClient, "text")
+    }   
+    var keys = dict.Keys;
+    var randPerson = dict.Keys[randFromRange(0,dict.Keys.length)];
+    console.log("/target chose: " + randPerson);
+    yield printMessage("@" + this.sender.mention_name + " targetted " + randPerson + ".", "green", this.roomClient, "text")
+    pclass[2] = randPerson;
+    mainArray[2] = pclass;
+    dict.update(this.sender.name, mainArray);
+
+
+});
 addon.webhook('room_message', /^\/class\s*([a-z]+)?/i, function  * () {
 	console.log(this.match[1]);
 	if (this.match[1] == "plsgivemesomethinggood"){
@@ -80,7 +99,7 @@ addon.webhook('room_message', /^[^\/].*/i, function  * () {
     }
 	var doweatk = randFromRange(increaseMonsterChance[this.sender.name], 20);
     console.log("Monster enc roll: " + doweatk.toString());
-	if (parseInt(doweatk) == 17 || parseInt(doweatk) == 5) {
+	if (parseInt(doweatk) == 17) {
 		
 		initPlayer(this.sender.name);
 		alreadyattacking = true;
@@ -231,7 +250,10 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
             underattack == "";
             alreadyattacking = false;
 			console.log("TOTAL ROLL: " + total);
-            classCast(this.sender.name, this.roomClient);
+             classCast(this.sender.name, this.roomClient, dict);
+           // I don't know how JS does the scopes of vars, so putting this function directly in here
+
+
 			if (parseInt(total) > hp) {
 			
 				if (total == 20) (amountofExp = amountofExp * 2);
@@ -423,41 +445,49 @@ function checkPlayer(playername){
 	}		
 }
 
-function classCast(playername, roomClient){
-	var abilityCheck = randFromRange(1,3);
+function classCast(playername, roomClient, mainDict){
+    var abilityCheck = randFromRange(1,2);
     console.log("Ability Check: " + abilityCheck.toString());
-
-	var mainArray = dict.getVal(playername);
-	var playerClass = mainArray[2];
-	// 1 ability for now
-	if (abilityCheck == 2){
-		switch (playerClass[0]){
-			case "Cleric":
-			    var healPower = randFromRange(1,mainArray[0][4]*2);
-				printMessage(playername + " casted <b>Self Renew</b> and was healed for <b>" + healPower.toString() + "</b>!", "random", roomClient, "html");
-				stats = mainArray[0];
-				stats[0] = stats[0] + healPower;
-				mainArray[0] = stats;
-				dict.update(playername, mainArray);
-				break;
-			case "Mage":
+    var mainArray = dict.getVal(playername);
+    var playerClass = mainArray[2];
+    // 1 ability for now
+    if (abilityCheck == 2){
+        switch (playerClass[0]){
+            case "Cleric":
+                var healPower = randFromRange(1,mainArray[0][4]*2);
+                var target = playerClass[2];
+                if (target == ""){
+                    printMessage(playername + " casted <b>Self Renew</b> and was healed for <b>" + healPower.toString() + "</b>!", "random", roomClient, "html");
+                }else {
+                    printMessage(playername + " casted <b>Self Renew</b> on " + target + " and healed for <b>" + healPower.toString() + "</b>!", "random", roomClient, "html");
+                }
+                var targetMainArray = dict.getVal(target);
+                console.log("targerray: " + targetMainArray.toString());
+                var targetStats = targetMainArray[0];
+                targetStats[0] = parseInt(targetStats[0]) + healPower;
+                targetMainArray[0] = targetStats;
+                dict.update(target, targetMainArray);
+                break;
+            case "Mage":
                 var magicPower = randomHelper(3, mainArray[0][4]*2);
                 printMessage(playername + " peppered <b>magic missiles</b> for the next monster encounter and added <b>" + magicPower.toString() + "</b> to seasoning modifier.", "random", roomClient, "html");
-                stats = mainArray[0];
-                stats[2] = stats[2] + magicPower;
+                var stats = mainArray[0];
+                stats[2] = parseInt(stats[2]) + parseInt(magicPower);
+                console.log("Magic Missiles added: " + stats[2].toString());
                 mainArray[0] = stats;
+                console.log("Magic Missiles added to MA: " + mainArray[0][2].toString());
                 dict.update(playername, mainArray);
-				break;
-			case "Princess":
-				break;
-			case "Warrior":
-				break;
-			default:
-				return;
-		
-		
-		}
-	}
+                break;
+            case "Princess":
+                break;
+            case "Warrior":
+                break;
+            default:
+                return;
+        
+        
+        }
+    }
 	return;
 }
 
@@ -522,8 +552,7 @@ if (!JSdict.prototype.getVal) {
 // Updates value of a key
 if (!JSdict.prototype.update) {
 	JSdict.prototype.update = function (key, val) {
-		console.log("Saving dictionary first");
-		saveData(dict);
+
 		if (key == null || val == null) {
 			return "Key or Value cannot be null";
 		}
@@ -544,7 +573,10 @@ if (!JSdict.prototype.update) {
 		if (!flag) {
 			return "Key does not exist";
 		}
+        console.log("Saving dictionary first");
+        saveData(dict);
 	}
+
 }
 
 // Check if dictionary extensions aren't implemented yet.
