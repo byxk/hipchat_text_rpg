@@ -30,4 +30,5 @@ Prime examples of how not to code! Including
 * Race conditions? Nah they'll never come up
 * Let's hope this array is always the same size!
 * Maybe I can pause the script by taking up CPU power...
+* Commit messages are terri-er, I mean, GREAT!
 * and many more!
