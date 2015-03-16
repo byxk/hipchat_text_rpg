@@ -45,13 +45,13 @@ addon.webhook('room_message', /^\/target/i, function  * () {
     var mainArray = dict.getVal(this.sender.name);
     var pclass = mainArray[2];
     var className = pclass[0];
-    console.log(dict.Keys.length);
+    logToFile(dict.Keys.length);
     if (className != "Cleric"){
         return yield printMessage("Must be a {Cleric} to use this feature.", "red", this.roomClient, "text")
     }   
     var keys = dict.Keys;
     var randPerson = dict.Keys[randFromRange(0,dict.Keys.length)];
-    console.log("/target chose: " + randPerson);
+    logToFile("/target chose: " + randPerson);
     yield printMessage("@" + this.sender.mention_name + " targetted " + randPerson + ".", "green", this.roomClient, "text")
     pclass[2] = randPerson;
     mainArray[2] = pclass;
@@ -60,7 +60,7 @@ addon.webhook('room_message', /^\/target/i, function  * () {
 
 });
 addon.webhook('room_message', /^\/class\s*([a-z]+)?/i, function  * () {
-	console.log(this.match[1]);
+	logToFile(this.match[1]);
 	if (this.match[1] == "plsgivemesomethinggood"){
 		mainArray = dict.getVal(this.sender.name);
 		pclass = mainArray[2];
@@ -80,7 +80,7 @@ addon.webhook('room_message', /^\/class\s*([a-z]+)?/i, function  * () {
         var pclass = mainArray[2];
         var rerolls = pclass[1];
         if (pclass[1] == "" && pclass[1] != 0){ 
-            console.log("REROLLS: " + rerolls);
+            logToFile("REROLLS: " + rerolls);
             pclass[1] = 1;
         }
         mainArray[2] = pclass;
@@ -98,7 +98,7 @@ addon.webhook('room_message', /^[^\/].*/i, function  * () {
         increaseMonsterChance[this.sender.name] = 1;
     }
 	var doweatk = randFromRange(increaseMonsterChance[this.sender.name], 20);
-    console.log("Monster enc roll: " + doweatk.toString());
+    logToFile("Monster encounter rolls: " + doweatk.toString());
 	if (parseInt(doweatk) == 17) {
 		
 		initPlayer(this.sender.name);
@@ -110,7 +110,7 @@ addon.webhook('room_message', /^[^\/].*/i, function  * () {
 		// attackdmg = (Math.floor(Math.random() * (levelofMob *5)) + levelofMob);
         // roll a xd8
         attackdmg = rollDice(Math.ceil(parseInt(levelofMob)/2),8, 0);
-        console.log("The monster rolled: " + attackdmg)
+        logToFile("The monster rolled: " + attackdmg)
 		hp = randFromRange(levelofMob, 19);
 		chanceOfFaith = (randFromRange(1,4)== 2);
 		amountofExp = randFromRange(0,10);
@@ -121,9 +121,9 @@ addon.webhook('room_message', /^[^\/].*/i, function  * () {
             + levelofMob.toString() 
             + " " + monsterType + " is going after you! Roll a 1d20 and defeat it. You must beat a " + hp +". Rolling for attack damage...","red", this.roomClient,"text");
         yield printMessage(formatRoll(Math.ceil(levelofMob/2), 8, 0, attackdmg, monsterType), "red", this.roomClient, "text");
-		console.log("Starting to wait for player " + underattack);
+		logToFile("Starting to wait for player " + underattack);
 		monsterTimer = setTimeout(function (room, name) {
-				console.log("Monster timed out");
+				logToFile("Monster timed out");
 				room.sendNotification(underattack + " took too long to fight back, and nearly died to the monster. 10 hp lost.");
 				underattack = "";
 				alreadyattacking = false;
@@ -187,7 +187,6 @@ addon.webhook('room_message', /^\/pepper/i, function  * () {
 	if (prayer_process) {
 		return;
 	}
-
 	prayer_process = true;
 	initPlayer(this.sender.name);
 	mainArray = dict.getVal(this.sender.name);
@@ -218,7 +217,7 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 	}
 	if (this.match[1] && this.match[2] && this.match[3]) {
         var diceRoll = rollDice(parseInt(numofdice),parseInt(numofsides), parseInt(modifier));
-        console.log("Mod dice roll" + diceRoll);
+        logToFile("Mod dice roll" + diceRoll);
 		var totalString = formatRoll(parseInt(numofdice),parseInt(numofsides),parseInt(modifier),diceRoll, this.sender.mention_name);
 		var total = diceRoll[0]
         yield printMessage(totalString, "purple", this.roomClient, "text");
@@ -240,7 +239,7 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 			
 			numofdice = parseInt(this.match[1]);
 			numofsides = parseInt(this.match[2]);
-			console.log("NUMOFDICE: " + numofdice);
+			logToFile("NUMOFDICE: " + numofdice);
 			var diceResult = rollDice(numofdice,numofsides,0);
 			totalString = formatRoll(numofdice, numofsides, 0 , diceResult, this.sender.mention_name)
 			total = diceResult[0];
@@ -253,7 +252,7 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 			clearTimeout(monsterTimer);
             underattack == "";
             alreadyattacking = false;
-			console.log("TOTAL ROLL: " + total);
+			logToFile("TOTAL ROLL: " + total);
              classCast(this.sender.name, this.roomClient, dict);
            // I don't know how JS does the scopes of vars, so putting this function directly in here
 
@@ -283,7 +282,7 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 				mainArray = dict.getVal(this.sender.name);
 				mainArray[0] = stats;
 				dict.update(this.sender.name, mainArray);
-				console.log("MAIN ARRAY: " + mainArray.toString());
+				logToFile("MAIN ARRAY: " + mainArray.toString());
 				alreadyattacking = false;
 			} else {
 				yield this.roomClient.sendNotification("@" + this.sender.mention_name + ' lost ' + attackdmg[0] + ' hp!', {
@@ -336,7 +335,7 @@ lr.on('error', function (err) {
 
 lr.on('line', function (line) {
     increaseMonsterChance[line] = 1;
-    console.log(line);
+    logToFile(line);
 });
 
 lr.on('end', function () {
@@ -370,9 +369,9 @@ function formatRoll (num, sides, mod, res, playername) {
 }
 
 function rollDice (num, sides, mod) {
-    console.log(num);
-    console.log(sides);
-    console.log(mod);
+    logToFile(num);
+    logToFile(sides);
+    logToFile(mod);
 	var res = [];
 	res.push(0);
 
@@ -434,7 +433,7 @@ function initPlayer(playername) {
 	playerClass = ["","","","",""];
 	mainArray = [stats, inventory,playerClass];
 	if (dict.getVal(playername) == "Key not found!") {
-		console.log("Creating Player: " + playername);
+		logToFile("Creating Player: " + playername);
 		dict.add(playername, mainArray);
 	}
 }
@@ -442,7 +441,7 @@ function initPlayer(playername) {
 function checkPlayer(playername){
 	mainArray = dict.getVal(playername);
 	if (mainArray.length == 2){
-		console.log("Updating Player");
+		logToFile("Updating Player");
 		// playerData not up to v2
 		playerClass = ["","","","","","","",""];
 		mainArray.push(playerClass);
@@ -450,8 +449,8 @@ function checkPlayer(playername){
 }
 
 function classCast(playername, roomClient, mainDict){
-    var abilityCheck = randFromRange(1,2);
-    console.log("Ability Check: " + abilityCheck.toString());
+    var abilityCheck = randFromRange(1,3);
+    logToFile("Ability Check: " + abilityCheck.toString());
     var mainArray = dict.getVal(playername);
     var playerClass = mainArray[2];
     // 1 ability for now
@@ -466,7 +465,7 @@ function classCast(playername, roomClient, mainDict){
                     printMessage(playername + " casted <b>Self Renew</b> on " + target + " and healed for <b>" + healPower.toString() + "</b>!", "random", roomClient, "html");
                 }
                 var targetMainArray = dict.getVal(target);
-                console.log("targerray: " + targetMainArray.toString());
+                logToFile("targerray: " + targetMainArray.toString());
                 var targetStats = targetMainArray[0];
                 targetStats[0] = parseInt(targetStats[0]) + healPower;
                 targetMainArray[0] = targetStats;
@@ -477,9 +476,9 @@ function classCast(playername, roomClient, mainDict){
                 printMessage(playername + " peppered <b>magic missiles</b> for the next monster encounter and added <b>" + magicPower.toString() + "</b> to seasoning modifier.", "random", roomClient, "html");
                 var stats = mainArray[0];
                 stats[2] = parseInt(stats[2]) + parseInt(magicPower);
-                console.log("Magic Missiles added: " + stats[2].toString());
+                logToFile("Magic Missiles added: " + stats[2].toString());
                 mainArray[0] = stats;
-                console.log("Magic Missiles added to MA: " + mainArray[0][2].toString());
+                logToFile("Magic Missiles added to MA: " + mainArray[0][2].toString());
                 dict.update(playername, mainArray);
                 break;
             case "Princess":
@@ -494,24 +493,26 @@ function classCast(playername, roomClient, mainDict){
     }
 	return;
 }
-
+function logToFile(message){
+    console.log(message);
+}
 function randomHelper(upperbound){
 	return (Math.floor(Math.random() * upperbound) + 1)
 }
 function sendRoomMessage(message, room){
 	return room.sendNotification(message);
 }
+
 function saveData(file) {
 	ser.registerKnownType("JSDICT", JSdict);
 	var data = ser.stringify({
 			dict : dict
 		});
-
 	fs.writeFile("data", data, function (err) {
 		if (err) {
-			console.log(err);
+			logToFile(err);
 		} else {
-			console.log("The file was saved!");
+			logToFile("The file was saved!");
 		}
 	});
 }
@@ -527,7 +528,7 @@ function loadData() {
 		dict = deserialized.dict;
 	}
 	catch(err) {
-		console.log(err);
+		logToFile(err);
 	}
 
 }
@@ -577,7 +578,7 @@ if (!JSdict.prototype.update) {
 		if (!flag) {
 			return "Key does not exist";
 		}
-        console.log("Saving dictionary first");
+        logToFile("Saving dictionary first");
         saveData(dict);
 	}
 
@@ -587,7 +588,7 @@ if (!JSdict.prototype.update) {
 // Adds a unique key value pair
 if (!JSdict.prototype.add) {
 	JSdict.prototype.add = function (key, val) {
-		console.log("Saving dictionary first");
+		logToFile("Saving dictionary first");
 		saveData(dict);
 		// Allow only strings or numbers as keys
 		if (typeof(key) == "number" || typeof(key) == "string") {
@@ -642,14 +643,14 @@ if (!JSdict.prototype.remove) {
 loadData();
 app.listen();
 getAllPeople(peopleInRoom);
-console.log(peopleInRoom);
+logToFile(peopleInRoom);
 
 var timer = setInterval(function() {
- console.log("Adding 1 to everyone") 
+ logToFile("Adding 1 to everyone") 
  for(var i in increaseMonsterChance) {
     if (increaseMonsterChance[i] <= 15)
         increaseMonsterChance[i] += 1;
-    console.log(i + "'s chances are now " + increaseMonsterChance[i]);
+    logToFile(i + "'s chances are now " + increaseMonsterChance[i]);
  }
 
 }, 30000)
