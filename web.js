@@ -153,7 +153,10 @@ addon.webhook('room_message', /\/stats\s*([\S]*)$/i, function  * () {
 	stats_process = true;
 	initPlayer(this.sender.name);
     if (this.match[1] == "all"){
-        if (statsAll) return yield printMessage("It's too soon for stats all.", "red", this.roomClient, "text");
+        if (statsAll) {
+            stats_process = false;
+            return yield printMessage("It's too soon for stats all.", "red", this.roomClient, "text");
+        }
         statsAll = true;
         var printString = "";
         for (var i in dict.Keys){
@@ -173,6 +176,7 @@ addon.webhook('room_message', /\/stats\s*([\S]*)$/i, function  * () {
         }
             statsTimer = setTimeout(function (room) {
                 logToFile("stats all is ready");
+                stats_process = false;
                 statsAll = false;
             }, 60000, this.roomClient);
         stats_process = false;
@@ -522,7 +526,10 @@ function classCast(playername, roomClient, mainDict){
             case "Warrior":
                 var attackModi = randomHelper(1, mainArray[0][4]);
                 if (playerClass[3] == "") playerClass[3] = 0;
-                if (playerClass[3] <= 10) playerClass[3] += attackModi;
+                if (playerClass[3] <= 10) {
+                    playerClass[3] += attackModi;
+
+                }
                 printMessage(playername + " executes <b>Death From Above</b> added <b>"+attackModi.toString()+"</b> to the seasoning modifier.", "random", roomClient, "html");
                 mainArray[2] = playerClass;
                 dict.update(playername, mainArray);
@@ -537,7 +544,7 @@ function classCast(playername, roomClient, mainDict){
 }
 
 function postAttackFunc(name){
-    dict.getVal(name)[0][2] += dict.getVal(name)[2][3];
+    dict.getVal(name)[0][2] = dict.getVal(name)[2][3];
 
 
 }
