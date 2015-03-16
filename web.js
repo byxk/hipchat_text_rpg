@@ -229,7 +229,6 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 		var totalString = "";
 		var total = 0;
 		if (!this.match[1] && !this.match[2] && !this.match[3]) {
-
             classCast(this.sender.name, this.roomClient, dict);
 			var mainArray = dict.getVal(this.sender.name);
 			var seasonMod = mainArray[0][2];
@@ -487,14 +486,17 @@ function classCast(playername, roomClient, mainDict){
             case "Princess":
                 break;
             case "Warrior":
+                attackdmg=0;
+                printMessage(playername + " sprayed the monster's eyes with the <b>5 Chinese Spices</b> and reduced the attack damage to <b>0</b>.", "random", roomClient, "html");
                 break;
             default:
-                return;
+                return true;
 
 
         }
     }
-	return;
+    time.sleep
+	return true;
 }
 function logToFile(message){
     console.log(message);
