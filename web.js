@@ -48,7 +48,7 @@ addon.webhook('room_message', /^\/target/i, function  * () {
     logToFile(dict.Keys.length);
     if (className != "Cleric"){
         return yield printMessage("Must be a {Cleric} to use this feature.", "red", this.roomClient, "text")
-    }   
+    }
     var keys = dict.Keys;
     var randPerson = dict.Keys[randFromRange(0,dict.Keys.length)];
     logToFile("/target chose: " + randPerson);
@@ -64,17 +64,17 @@ addon.webhook('room_message', /^\/class\s*([a-z]+)?/i, function  * () {
 	if (this.match[1] == "plsgivemesomethinggood"){
 		mainArray = dict.getVal(this.sender.name);
 		pclass = mainArray[2];
-		
+
 		if (parseInt(pclass[1]) <= 0) return printMessage(this.sender.name +"'s class has been chosen already. You cannot change destiny.", "red", this.roomClient);
         pclass[1] -= 1;
 		chosenClass = classTypes[Math.floor(Math.random() * classTypes.length)];
 		printMessage(this.sender.name + "'s rolls the destiny dice and is chosen as a......<b>" + chosenClass + "</b>!!!!", "green", this.roomClient);
-		
+
 		pclass[0] = chosenClass;
 		mainArray[2] = pclass;
 		dict.update(this.sender.name, mainArray);
 		return;
-		
+
 	}else{
         var mainArray = dict.getVal(this.sender.name);
         var pclass = mainArray[2];
@@ -85,10 +85,10 @@ addon.webhook('room_message', /^\/class\s*([a-z]+)?/i, function  * () {
         }
         mainArray[2] = pclass;
         dict.update(this.sender.name, mainArray);
-		printMessage("Available classes: Cleric, Mage, Warrior, Princess. Choose with /class plsgivemesomethinggood. @" + 
+		printMessage("Available classes: Cleric, Mage, Warrior, Princess. Choose with /class plsgivemesomethinggood. @" +
             this.sender.mention_name + " has " + pclass[1] + " reroll(s) left!", "yellow", this.roomClient, "text");
 	}
-			
+
 });
 addon.webhook('room_message', /^[^\/].*/i, function  * () {
 	if (alreadyattacking) {
@@ -100,7 +100,7 @@ addon.webhook('room_message', /^[^\/].*/i, function  * () {
 	var doweatk = randFromRange(increaseMonsterChance[this.sender.name], 20);
     logToFile("Monster encounter rolls: " + doweatk.toString());
 	if (parseInt(doweatk) == 17) {
-		
+
 		initPlayer(this.sender.name);
 		alreadyattacking = true;
 		underattack = this.sender.name;
@@ -117,8 +117,8 @@ addon.webhook('room_message', /^[^\/].*/i, function  * () {
 		monsterType = typesOfMonsters[Math.floor(Math.random() * typesOfMonsters.length)];
 		monsterfoodDrop = foodDrops[Math.floor(Math.random() * foodDrops.length)];
 		diceToRoll = playerLevel;
-        yield printMessage("Quickly @" + this.sender.mention_name + ", the level " 
-            + levelofMob.toString() 
+        yield printMessage("Quickly @" + this.sender.mention_name + ", the level "
+            + levelofMob.toString()
             + " " + monsterType + " is going after you! Roll a 1d20 and defeat it. You must beat a " + hp +". Rolling for attack damage...","red", this.roomClient,"text");
         yield printMessage(formatRoll(Math.ceil(levelofMob/2), 8, 0, attackdmg, monsterType), "red", this.roomClient, "text");
 		logToFile("Starting to wait for player " + underattack);
@@ -159,17 +159,19 @@ addon.webhook('room_message', /^\/stats\s*([a-z]+)?/i, function  * () {
           "<tr><td>EXP</td><td>  </td><td>" + stats[3] + "</td></tr>" +
           "<tr><td>Pepper </td><td>  </td><td>" + stats[1].toString() + "</td></tr>" +
           "<tr><td>Seasoning</td><td>  </td><td>" + stats[2].toString() + "</td></tr>" +
-          "</table>";
+          "</table>";*/
+
+    var tableString = "<table><tr><th>Class</th><th>HP</th><th>Level</th><th>EXP</th><th>Pepper</th><th>Seasoning</th></tr>" +
+    	"<tr><td>" +pclass[0]+"</td><td>"+stats[0].toString()+"</td><td>"+stats[4]+"</td><td>"+stats[3]+"</td><td>"+stats[1]+"</td><td>"+stats[2]+"</td></tr></table>";
+
     yield printMessage("@" + this.sender.mention_name + "'s stats:", "green", this.roomClient, "text");
     printMessage(tableString, "green", this.roomClient, "html");
-    **/
-
-
-	yield this.roomClient.sendNotification("@" + this.sender.mention_name + "'s stats | class: " + pclass[0] + " | hp: " + stats[0].toString() + " | Level: " + stats[4] + " | EXP: " + stats[3] + " | pepper: " + stats[1].toString() + " | seasoning modifier: " + stats[2].toString(), {
-		color : 'green',
-		format : 'text'
-	});
-	stats_process = false;
+    stats_process = false;
+// 	yield this.roomClient.sendNotification("@" + this.sender.mention_name + "'s stats | class: " + pclass[0] + " | hp: " + stats[0].toString() + " | Level: " + stats[4] + " | EXP: " + stats[3] + " | pepper: " + stats[1].toString() + " | seasoning modifier: " + stats[2].toString(), {
+// 	//	color : 'green',
+// 	//	format : 'text'
+// 	//});
+ 	stats_process = false;
 });
 
 addon.webhook('room_message', /^\/inventory/i, function  * () {
@@ -236,18 +238,18 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 			totalString = formatRoll(numofdice, numofsides, seasonMod, diceRoll, this.sender.mention_name)
 			total = parseInt(diceRoll[0]);
 		} else {
-			
+
 			numofdice = parseInt(this.match[1]);
 			numofsides = parseInt(this.match[2]);
 			logToFile("NUMOFDICE: " + numofdice);
 			var diceResult = rollDice(numofdice,numofsides,0);
 			totalString = formatRoll(numofdice, numofsides, 0 , diceResult, this.sender.mention_name)
 			total = diceResult[0];
-			
+
 		}
 		yield printMessage(totalString, "purple", this.roomClient, "text");
 
-		
+
 		if (((this.sender.name == underattack) && (numofdice == 1) && (numofsides == 20 ))) {
 			clearTimeout(monsterTimer);
             underattack == "";
@@ -258,7 +260,7 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 
 
 			if (parseInt(total) > hp) {
-			
+
 				if (total == 20) (amountofExp = amountofExp * 2);
 				yield this.roomClient.sendNotification("@" + this.sender.mention_name + ' defeated the ' + monsterType + ' and got ' + monsterfoodDrop + ' that restores ' + Math.floor(attackdmg[0]) + " hp along with " + amountofExp + " exp!", {
 					color : 'purple',
@@ -300,7 +302,7 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 					dict.remove(this.sender.name);
 					initPlayer(this.sender.name);
 				}else{
-				
+
 					mainArray = dict.getVal(this.sender.name);
 					mainArray[0] = stats;
 					dict.update(this.sender.name, mainArray);
@@ -350,7 +352,7 @@ lr.on('end', function () {
 // USAGE: Print this string with "@UserX: " appended to the front.
 function formatRoll (num, sides, mod, res, playername) {
 	var pre_str = "@" + playername + " rolled " + num + "d" + sides + "+" + mod + ": ";
-	
+
 	var res_str = "(";
 	for (var i = 1; i < num+1; i++) {
 		if (i == 1) {
@@ -361,7 +363,7 @@ function formatRoll (num, sides, mod, res, playername) {
 	}
 	res_str += ")";
 	if (mod) {
-		res_str += "+" + mod;	
+		res_str += "+" + mod;
 	}
 	res_str += " = " + res[0];
 
@@ -411,12 +413,12 @@ function randFromRange (low, high) {
 function printMessage (msg, clr, room, form) {
     if (form == "undefined") form = "html";
 	return room.sendNotification(
-		msg, 
+		msg,
 		{
 			color : clr,
 			format : form
 		});
-	
+
 }
 
 // PAT'S RANDOM, UNSORTED FUNCTIONS
@@ -445,7 +447,7 @@ function checkPlayer(playername){
 		// playerData not up to v2
 		playerClass = ["","","","","","","",""];
 		mainArray.push(playerClass);
-	}		
+	}
 }
 
 function classCast(playername, roomClient, mainDict){
@@ -487,8 +489,8 @@ function classCast(playername, roomClient, mainDict){
                 break;
             default:
                 return;
-        
-        
+
+
         }
     }
 	return;
@@ -647,6 +649,7 @@ logToFile(peopleInRoom);
 
 var timer = setInterval(function() {
  logToFile("Adding 1 to everyone") 
+
  for(var i in increaseMonsterChance) {
     if (increaseMonsterChance[i] <= 15)
         increaseMonsterChance[i] += 1;
