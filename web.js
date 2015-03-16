@@ -19,6 +19,7 @@ var dict = new JSdict();
 var attackdmg = 0;
 var chanceOfFaith = false;
 var amountofExp = false;
+var statsAll = false;
 var globalEnc = 20;
 var monsterType = "";
 var monsterfoodDrop = "";
@@ -48,7 +49,7 @@ addon.webhook('room_message', /\/target\s*([\S\s]*)$/i, function  * () {
     var className = pclass[0];
     var target = this.match[1];
     logToFile(dict.Keys.length);
-    if (this.match.length == 1){ 
+    if (!this.match[1]){ 
         return yield printMessage("@" +this.sender.mention_name + " is currently targeting + " + pclass[2] + ".", "green", this.roomClient, "text") 
     }
     if (className != "Cleric"){
@@ -145,15 +146,37 @@ addon.webhook('room_message', /^[^\/].*/i, function  * () {
 
 	return;
 });
-addon.webhook('room_message', /^\/rpg/i, function  * () {
-	yield this.roomClient.sendNotification("Available commands: roll|class|stats|inventory|pepper|rpg")
-});
 
-addon.webhook('room_message', /^\/stats\s*([a-z]+)?/i, function  * () {
+addon.webhook('room_message', /\/stats\s*([\S]*)$/i, function  * () {
 	if (stats_process)
 		return;
 	stats_process = true;
 	initPlayer(this.sender.name);
+    if (this.match[1] == "all"){
+        if (statsAll) return yield printMessage("It's too soon for stats all.", "red", this.roomClient, "text");
+        statsAll = true;
+        var printString = "";
+        for (var i in dict.Keys){
+            var personName = dict.Keys[i];
+            logToFile("Looping thru " + personName);
+            var tempPlayerArray = dict.getVal(personName);
+            var tempPlayerStats = tempPlayerArray[0];
+            var tempPlayerClass = tempPlayerArray[2];
+
+            yield printMessage(personName + "'s stats | class: " 
+                + tempPlayerClass[0] + " | hp: " 
+                + tempPlayerStats[0].toString() + " | Level: " 
+                + tempPlayerStats[4] + " | EXP: " + tempPlayerStats[3] 
+                + " | pepper: " + tempPlayerStats[1].toString() 
+                + " | seasoning modifier: " + tempPlayerStats[2].toString(), "yellow", this.roomClient, "text");
+
+        }
+            statsTimer = setTimeout(function (room) {
+                logToFile("stats all is ready");
+                statsAll = false;
+            }, 60000, this.roomClient);
+        return;
+    }
 	mainArray = dict.getVal(this.sender.name);
 	stats = mainArray[0];
 	pclass = mainArray[2];
