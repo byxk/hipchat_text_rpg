@@ -185,7 +185,7 @@ addon.webhook('room_message', /^\/inventory/i, function  * () {
 	inventory_process = false;
 });
 
-addon.webhook('room_message', /^\/pepper/i, function  * () {
+addon.webhook('room_message', /^\/pepper|^\/peppa/i, function  * () {
 	if (prayer_process) {
 		return;
 	}
@@ -230,6 +230,7 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 		var total = 0;
 		if (!this.match[1] && !this.match[2] && !this.match[3]) {
 
+            classCast(this.sender.name, this.roomClient, dict);
 			var mainArray = dict.getVal(this.sender.name);
 			var seasonMod = mainArray[0][2];
 			numofdice = 1;
@@ -255,7 +256,7 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
             underattack == "";
             alreadyattacking = false;
 			logToFile("TOTAL ROLL: " + total);
-             classCast(this.sender.name, this.roomClient, dict);
+
            // I don't know how JS does the scopes of vars, so putting this function directly in here
 
 
@@ -475,7 +476,7 @@ function classCast(playername, roomClient, mainDict){
                 break;
             case "Mage":
                 var magicPower = randomHelper(3, mainArray[0][4]*2);
-                printMessage(playername + " peppered <b>magic missiles</b> for the next monster encounter and added <b>" + magicPower.toString() + "</b> to seasoning modifier.", "random", roomClient, "html");
+                printMessage(playername + " peppered <b>magic missiles</b> and added <b>" + magicPower.toString() + "</b> to seasoning modifier.", "random", roomClient, "html");
                 var stats = mainArray[0];
                 stats[2] = parseInt(stats[2]) + parseInt(magicPower);
                 logToFile("Magic Missiles added: " + stats[2].toString());
