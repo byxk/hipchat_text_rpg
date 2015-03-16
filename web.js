@@ -20,6 +20,7 @@ var attackdmg = 0;
 var chanceOfFaith = false;
 var amountofExp = false;
 var postSeasoning = 0;
+var globalEnc = 20;
 var monsterType = "";
 var monsterfoodDrop = "";
 var playerDiceType;
@@ -105,8 +106,8 @@ addon.webhook('room_message', /^[^\/].*/i, function  * () {
     }
 	var doweatk = randFromRange(increaseMonsterChance[this.sender.name], 20);
     logToFile("Monster encounter rolls: " + doweatk.toString());
-	if (parseInt(doweatk) == 17) {
-
+	if (parseInt(doweatk) == 17 || globalEnc == 21) {
+        globalEnc = 0;
 		initPlayer(this.sender.name);
 		alreadyattacking = true;
 		underattack = this.sender.name;
@@ -665,6 +666,11 @@ loadData();
 app.listen();
 getAllPeople(peopleInRoom);
 logToFile(peopleInRoom);
+var gblMonTmr = setInterval(function() {
+ logToFile("Changing Global Encounter to 18.") 
+ globalEnc = 21;
+
+}, 300000)
 
 var timer = setInterval(function() {
  logToFile("Adding 1 to everyone") 
