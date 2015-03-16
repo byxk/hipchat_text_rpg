@@ -19,7 +19,6 @@ var dict = new JSdict();
 var attackdmg = 0;
 var chanceOfFaith = false;
 var amountofExp = false;
-var postSeasoning = 0;
 var globalEnc = 20;
 var monsterType = "";
 var monsterfoodDrop = "";
@@ -57,7 +56,7 @@ addon.webhook('room_message', /\/target\s*([\S\s]*)$/i, function  * () {
     }
     logToFile("Attempting to target " + this.match[1]);
     if (dict.getVal(this.match[1]) == "Key not found!"){
-        return yield printMessage(this.match[1] + " could not be found!");
+        return yield printMessage(this.match[1] + " could not be found!", "green", this.roomClient);
     }
     yield printMessage("@" + this.sender.mention_name + " targeted " + this.match[1] + ".", "green", this.roomClient, "text")
     pclass[2] = target.toString();
@@ -301,6 +300,7 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 				stats = dict.getVal(this.sender.name)[0];
 				stats[2] = 0;
 				stats[0] = parseInt(stats[0]) - parseInt(attackdmg[0]);
+                mainArray[2][3] = 0;
 				if (stats[0] <=0){
 					yield this.roomClient.sendNotification("@" + this.sender.mention_name + ' has died.', {
 					color : 'red',
@@ -496,9 +496,12 @@ function classCast(playername, roomClient, mainDict){
             case "Princess":
                 break;
             case "Warrior":
-                var attackModi = randomHelper(1, mainArray[0][4]*2);
+                var attackModi = randomHelper(1, mainArray[0][4]);
+                if (playerClass[3] == "") playerClass[3] = 0;
+                if (playerClass[3] <= 10) playerClass[3] += attackModi;
                 printMessage(playername + " executes <b>Death From Above</b> added <b>"+attackModi.toString()+"</b> to the seasoning modifier.", "random", roomClient, "html");
-                postSeasoning = attackModi;
+                mainArray[2] = playerClass;
+                dict.update(playername, mainArray);
                 break;
             default:
                 return true;
@@ -510,8 +513,7 @@ function classCast(playername, roomClient, mainDict){
 }
 
 function postAttackFunc(name){
-    dict.getVal(name)[0][2] += postSeasoning;
-    postSeasoning =0;
+    dict.getVal(name)[0][2] += dict.getVal(name)[2][3];
 
 
 }
