@@ -19,6 +19,7 @@ var dict = new JSdict();
 var attackdmg = 0;
 var chanceOfFaith = false;
 var amountofExp = false;
+var postSeasoning = 0;
 var monsterType = "";
 var monsterfoodDrop = "";
 var playerDiceType;
@@ -41,19 +42,24 @@ String.prototype.startsWith = function(prefix) {
     return this.indexOf(prefix) === 0;
 }
 
-addon.webhook('room_message', /^\/target/i, function  * () {
+addon.webhook('room_message', /\/target\s*([\S\s]*)$/i, function  * () {
     var mainArray = dict.getVal(this.sender.name);
     var pclass = mainArray[2];
     var className = pclass[0];
+    var target = this.match[1];
     logToFile(dict.Keys.length);
+    if (this.match.length == 1){ 
+        return yield printMessage("@" +this.sender.mention_name + " is currently targeting + " + pclass[2] + ".", "green", this.roomClient, "text") 
+    }
     if (className != "Cleric"){
         return yield printMessage("Must be a {Cleric} to use this feature.", "red", this.roomClient, "text")
     }
-    var keys = dict.Keys;
-    var randPerson = dict.Keys[randFromRange(0,dict.Keys.length)];
-    logToFile("/target chose: " + randPerson);
-    yield printMessage("@" + this.sender.mention_name + " targetted " + randPerson + ".", "green", this.roomClient, "text")
-    pclass[2] = randPerson;
+    logToFile("Attempting to target " + this.match[1]);
+    if (dict.getVal(this.match[1]) == "Key not found!"){
+        return yield printMessage(this.match[1] + " could not be found!");
+    }
+    yield printMessage("@" + this.sender.mention_name + " targeted " + this.match[1] + ".", "green", this.roomClient, "text")
+    pclass[2] = target.toString();
     mainArray[2] = pclass;
     dict.update(this.sender.name, mainArray);
 
@@ -310,6 +316,9 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 				underattack = ""
 				alreadyattacking = false;
 			}
+            postAttackFunc(this.sender.name);
+
+
 
 		}
 	} else if (this.match[1]) {
@@ -486,8 +495,9 @@ function classCast(playername, roomClient, mainDict){
             case "Princess":
                 break;
             case "Warrior":
-                attackdmg=0;
-                printMessage(playername + " sprayed the monster's eyes with the <b>5 Chinese Spices</b> and reduced the attack damage to <b>0</b>.", "random", roomClient, "html");
+                var attackModi = randomHelper(1, mainArray[0][4]*2);
+                printMessage(playername + " executes <b>Death From Above</b> added <b>"+attackModi.toString()+"</b> to the seasoning modifier.", "random", roomClient, "html");
+                postSeasoning = attackModi;
                 break;
             default:
                 return true;
@@ -495,8 +505,14 @@ function classCast(playername, roomClient, mainDict){
 
         }
     }
-    time.sleep
 	return true;
+}
+
+function postAttackFunc(name){
+    dict.getVal(name)[0][2] += postSeasoning;
+    postSeasoning =0;
+
+
 }
 function logToFile(message){
     console.log(message);
