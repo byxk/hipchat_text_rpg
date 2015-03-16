@@ -175,6 +175,7 @@ addon.webhook('room_message', /\/stats\s*([\S]*)$/i, function  * () {
                 logToFile("stats all is ready");
                 statsAll = false;
             }, 60000, this.roomClient);
+        stats_process = false;
         return;
     }
 	mainArray = dict.getVal(this.sender.name);
