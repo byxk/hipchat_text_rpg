@@ -162,7 +162,7 @@ addon.webhook('room_message', /^\/stats\s*([a-z]+)?/i, function  * () {
           "</table>";*/
 
     var tableString = "<table><tr><th>Class</th><th>HP</th><th>Level</th><th>EXP</th><th>Pepper</th><th>Seasoning</th></tr>" +
-    	"<tr><td>+"pclass[0]+"</td><td>"+stats[0].toString()+"</td><td>"+stats[4]+"</td><td>"+stats[3]+"</td><td>"+stats[1]+"</td><td>"+stats[2]+"</td></tr></table>";
+    	"<tr><td>" +pclass[0]+"</td><td>"+stats[0].toString()+"</td><td>"+stats[4]+"</td><td>"+stats[3]+"</td><td>"+stats[1]+"</td><td>"+stats[2]+"</td></tr></table>";
 
     yield printMessage("@" + this.sender.mention_name + "'s stats:", "green", this.roomClient, "text");
     printMessage(tableString, "green", this.roomClient, "html");
