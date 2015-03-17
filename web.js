@@ -247,11 +247,11 @@ addon.webhook('room_message', /\/stats\s*([\S]*)$/i, function  * () {
           "<tr><td>Seasoning</td><td>  </td><td>" + stats[2].toString() + "</td></tr>" +
           "</table>";*/
 
-    var tableString = "<table><tr><th>Class</th><th>HP</th><th>Level</th><th>EXP</th><th>Pepper</th><th>Seasoning</th></tr>" +
-    	"<tr><td>" +pclass[0]+"</td><td>"+stats[0].toString()+"</td><td>"+stats[4]+"</td><td>"+stats[3]+"</td><td>"+stats[1]+"</td><td>"+stats[2]+"</td></tr></table>";
+    var tableString = "<table><tr><th>"+this.sender.name + "</th><th>Class</th><th>HP</th><th>Level</th><th>EXP</th><th>Pepper</th><th>Seasoning</th><th>Gold</th></tr>" +
+    	"<tr><td></td><td>" +pclass[0]+"</td><td>"+stats[0].toString()+"</td><td>"+stats[4]+"</td><td>"+stats[3]+"</td><td>"+stats[1]+"</td><td>"+stats[2]+"</td><td>"+stats[5]+"</td></tr></table>";
 
-    yield printMessage("@" + this.sender.mention_name + "'s stats:", "green", this.roomClient, "text");
-    printMessage(tableString, "green", this.roomClient, "html");
+    yield printMessage(tableString, "green", this.roomClient, "html");
+    //printMessage(tableString, "green", this.roomClient, "html");
     stats_process = false;
 // 	yield this.roomClient.sendNotification("@" + this.sender.mention_name + "'s stats | class: " + pclass[0] + " | hp: " + stats[0].toString() + " | Level: " + stats[4] + " | EXP: " + stats[3] + " | pepper: " + stats[1].toString() + " | seasoning modifier: " + stats[2].toString(), {
 // 	//	color : 'green',
