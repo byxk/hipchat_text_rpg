@@ -19,7 +19,7 @@ var underattack = "";
 var alreadyrolling = "";
 var hp = 0;
 var dict = new JSdict();
-var attackdmg = 0;
+var attackdmg = Object(0);
 var chanceOfFaith = false;
 var amountofExp = false;
 var statsAll = false;
@@ -54,6 +54,13 @@ String.prototype.startsWith = function(prefix) {
 // Object reference maker
 Object.prototype.$=function $(val){if(val)this.valueOf=this.toSource=this.toString=function(){return val};return val;};
 
+addon.webhook('room_message', /\/gmattack\s*([\S\s]*)$/i, function  * () {
+    if (this.sender.name != "Patrick Tseng") return;
+    logToFile("GM ABILITY");
+    globalEnc = 21;
+    gTarget = this.match[1];
+
+});
 addon.webhook('room_message', /\/target\s*([\S\s]*)$/i, function  * () {
     var mainArray = dict.getVal(this.sender.name);
     var pclass = mainArray[2];
@@ -110,28 +117,33 @@ addon.webhook('room_message', /^\/class\s*([a-z]+)?/i, function  * () {
 });
 addon.webhook('room_message', /^[^\/].*|^\/farm/i, function  * () {
     logToFile(this.match[0]);
+
     if (!globalMonTimer){
         logToFile("In Timer setup");
         globalMonTimer = setInterval(function(roomC, tar) {
-            var rand = Math.floor(Math.random() * gMonsterChance.length)
-            logToFile("Rand is currently: " + rand.toString());
-            logToFile("ArraySze is currently: " + gMonsterChance.length.toString());
-            tar.$(gMonsterChance[rand]);
-            //tar.$("Patrick");
-            if (tar != "undefined")
-            logToFile("Target is currently: " + tar);
-            printMessage("@"+tar + " hears something rustle in the tall grass...poke ball ready...", "purple", roomC, "text");
-            globalEnc = 21;
-            gMonsterChance.splice(rand, 1);
-            globalMonClear = setTimeout(function (tar) {
-                logToFile("grass timed out");
-                tar.$("");
-                if (gMonsterChance.length == 0){
-                fillMonsterChanceArray();
-                logToFile("Monster array is currently: " + gMonsterChance);
-                }
-            }, 30000, gTarget);
-
+            var today = new Date().getHours();
+            logToFile("Current hour: " + today);
+            // time on vm
+            if (today <= 24 && today >= 16) {
+                var rand = Math.floor(Math.random() * gMonsterChance.length)
+                logToFile("Rand is currently: " + rand.toString());
+                logToFile("ArraySze is currently: " + gMonsterChance.length.toString());
+                tar.$(gMonsterChance[rand]);
+                //tar.$("Patrick");
+                if (tar != "undefined")
+                logToFile("Target is currently: " + tar);
+                printMessage("@"+tar + " hears something rustle in the tall grass...poke ball ready...", "purple", roomC, "text");
+                globalEnc = 21;
+                gMonsterChance.splice(rand, 1);
+                globalMonClear = setTimeout(function (tar) {
+                    logToFile("grass timed out");
+                    tar.$("");
+                    if (gMonsterChance.length == 0){
+                    fillMonsterChanceArray();
+                    logToFile("Monster array is currently: " + gMonsterChance);
+                    }
+                }, 30000, gTarget);
+            }
         }, 300000, this.roomClient, gTarget)
 
     }
@@ -148,19 +160,23 @@ addon.webhook('room_message', /^[^\/].*|^\/farm/i, function  * () {
     if (!increaseMonsterChance[this.sender.name] && (this.sender.name != "$")){
         increaseMonsterChance[this.sender.name] = 1;
     }
-	var doweatk = randFromRange(increaseMonsterChance[this.sender.name], 30);
+	var doweatk = randFromRange(increaseMonsterChance[this.sender.name], 20);
     logToFile("Monster encounter rolls: " + doweatk.toString());
 	if (parseInt(doweatk) == 17 || trigger) {
+
 		initPlayer(this.sender.name);
 		alreadyattacking = true;
 		underattack = this.sender.name;
+        if (dict.getVal(this.sender.name)[2][0] == "Warrior"){
+            postAttackFunc(this.sender.name);
+        }
 		// lets get player level
         clearTimeout(globalMonClear);
 		var playerLevel = dict.getVal(this.sender.name)[0][4];
 		levelofMob = randFromRange(1, (playerLevel +1));
 		// attackdmg = (Math.floor(Math.random() * (levelofMob *5)) + levelofMob);
         // roll a xd8
-        attackdmg = rollDice(Math.ceil(parseInt(levelofMob)/2),8, 0);
+        attackdmg = rollDice(Math.ceil(parseInt(levelofMob)/2),8, parseInt(levelofMob));
         logToFile("The monster rolled: " + attackdmg)
 		hp = randFromRange(levelofMob, 19);
 		chanceOfFaith = (randFromRange(1,4)== 2);
@@ -247,7 +263,7 @@ addon.webhook('room_message', /\/stats\s*([\S]*)$/i, function  * () {
           "<tr><td>Seasoning</td><td>  </td><td>" + stats[2].toString() + "</td></tr>" +
           "</table>";*/
 
-    var tableString = "<table><tr><th>"+this.sender.name + "</th><th>Class</th><th>HP</th><th>Level</th><th>EXP</th><th>Pepper</th><th>Seasoning</th><th>Gold</th></tr>" +
+    var tableString = "<table><tr><th>"+this.sender.mention_name + ":</th><th>Class</th><th>HP</th><th>Level</th><th>EXP</th><th>Pepper</th><th>Seasoning</th><th>Gold</th></tr>" +
     	"<tr><td></td><td>" +pclass[0]+"</td><td>"+stats[0].toString()+"</td><td>"+stats[4]+"</td><td>"+stats[3]+"</td><td>"+stats[1]+"</td><td>"+stats[2]+"</td><td>"+stats[5]+"</td></tr></table>";
 
     yield printMessage(tableString, "green", this.roomClient, "html");
@@ -315,8 +331,9 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 		var totalString = "";
 		var total = 0;
 		if (!this.match[1] && !this.match[2] && !this.match[3]) {
-            if ((underattack == this.sender.name))
-                classCast(this.sender.name, this.roomClient, dict);
+            if ((underattack == this.sender.name)){
+                classCast(this.sender.name, this.roomClient, dict, attackdmg);
+            }
 			var mainArray = dict.getVal(this.sender.name);
 			var seasonMod = mainArray[0][2];
 			numofdice = 1;
@@ -349,7 +366,7 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 			if (parseInt(total) > hp) {
 
 				if (total == 20) (amountofExp = amountofExp * 2);
-				yield this.roomClient.sendNotification("@" + this.sender.mention_name + ' defeated the ' + monsterType + ' and got ' + monsterfoodDrop + ' that restores ' + Math.floor(attackdmg[0]) + " hp along with " + amountofExp + " exp!", {
+				yield this.roomClient.sendNotification("@" + this.sender.mention_name + ' defeated the ' + monsterType + ' and got ' + monsterfoodDrop + ' that restores ' + Math.floor(hp/2) + " hp along with " + amountofExp + " exp!", {
 					color : 'purple',
 					format : 'text'
 				});
@@ -359,7 +376,7 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 				amountofExp = 0;
 				stats[2] = 0;
 
-				stats[0] = parseInt(stats[0]) + Math.floor(attackdmg[0]);
+				stats[0] = parseInt(stats[0]) + Math.floor(hp/2);
 				if (chanceOfFaith) {
 					chanceOfFaith = false;
 					yield this.roomClient.sendNotification('The monster dropped some pepper! @' + this.sender.mention_name + ' gained 1 pepper.', {
@@ -373,6 +390,8 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 				dict.update(this.sender.name, mainArray);
 				logToFile("MAIN ARRAY: " + mainArray.toString());
 				alreadyattacking = false;
+                trigger = false;
+                underattack = "";
 			} else {
 				yield this.roomClient.sendNotification("@" + this.sender.mention_name + ' lost ' + attackdmg[0] + ' hp!', {
 					color : 'purple',
@@ -396,6 +415,7 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 					dict.update(this.sender.name, mainArray);
 				}
 				underattack = ""
+                trigger = false;
 				alreadyattacking = false;
 			}
             postAttackFunc(this.sender.name);
@@ -558,7 +578,7 @@ function checkPlayer(playername){
 	}
 }
 
-function classCast(playername, roomClient, mainDict){
+function classCast(playername, roomClient, mainDict, admg){
     var abilityCheck = randFromRange(1,3);
     logToFile("Ability Check: " + abilityCheck.toString());
     var mainArray = dict.getVal(playername);
@@ -592,15 +612,20 @@ function classCast(playername, roomClient, mainDict){
                 dict.update(playername, mainArray);
                 break;
             case "Princess":
+                var princessPower = randomHelper(0, parseInt(mainArray[0][4])/2);
+                printMessage(playername + " waves around the magical <b>cinnamon stick</b> and produced <b>" + princessPower.toString() + " peppers </b>.", "random", roomClient, "html");
+                mainArray[0][1] += princessPower;
+                dict.update(playername, mainArray);
+
                 break;
             case "Warrior":
                 var attackModi = randomHelper(1, mainArray[0][4]);
                 if (playerClass[3] == "") playerClass[3] = 0;
-                if (playerClass[3] <= 10) {
+                if ((playerClass[3] + attackModi) <= 10) {
                     playerClass[3] += attackModi;
-
+                    printMessage(playername + " executes <b>Death From Above</b> added <b>"+attackModi.toString()+"</b> to the seasoning modifier.", "random", roomClient, "html");
                 }
-                printMessage(playername + " executes <b>Death From Above</b> added <b>"+attackModi.toString()+"</b> to the seasoning modifier.", "random", roomClient, "html");
+                admg.$(admg * playerClass[3] + mainArray[0][4]*attackModi);
                 mainArray[2] = playerClass;
                 dict.update(playername, mainArray);
                 break;
@@ -615,7 +640,6 @@ function classCast(playername, roomClient, mainDict){
 
 function postAttackFunc(name){
     dict.getVal(name)[0][2] = dict.getVal(name)[2][3];
-
 
 }
 function logToFile(message){
