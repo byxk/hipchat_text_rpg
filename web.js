@@ -1,6 +1,6 @@
 // data: [ARRAY[HP,PEPPERPOINTS,SEASONINGMOD,EXP, LEVEL],ARRAY[ITEMS],ARRAY[CLASSNAME, numOfReRolls, target]]
-var typesOfMonsters = ["globin", "poring", "Ghostly Josh", "Headless Jimmy", "Spooky Jennie", "Playboy Rob", "Mad Patrick"];
-var foodDrops = ["an Apple", "a Potato", "Jimmy's sandwich", "Josh's bacon", "Jennie's fruit punch", "Rob's pills", "Patrick's JapaDog"];
+var typesOfMonsters = ["globin", "poring", "Ghostly Josh", "Headless Jimmy", "Spooky Jennie", "Playboy Rob", "Mad Patrick", "Crazy Leo", "Sad Caledonia", "Master Imran"];
+var foodDrops = ["an Apple", "a Potato", "Jimmy's sandwich", "Josh's bacon", "Jennie's fruit punch", "Rob's pills", "Patrick's JapaDog", "Leo's Monopoly", "Caledonia's Waterbottle", "Imran's Resume"];
 var classTypes = ["Cleric", "Mage", "Princess", "Warrior"];
 var monsterLevelDice = [20,30,40,50,60];
 var ack = require('ac-koa').require('hipchat');
@@ -24,13 +24,19 @@ var globalEnc = 20;
 var monsterType = "";
 var monsterfoodDrop = "";
 var playerDiceType;
+var mainTimerDuration = 300000;
 var increaseMonsterChance = new Array();
+var gMonsterChance = new Array();
 var diceToRoll = 0;
 var levelofMob = 1;
 var prayer_process = false;
 var inventory_process = false;
 var stats_process = false;
+var globalMonTimer;
+var globalMonClear;
+var gTarget = Object("");
 var peopleInRoom;
+var globalRoom;
 var addon = app.addon()
 	.hipchat()
 	.allowRoom(true)
@@ -42,6 +48,8 @@ if (process.env.DEV_KEY) {
 String.prototype.startsWith = function(prefix) {
     return this.indexOf(prefix) === 0;
 }
+// Object reference maker
+Object.prototype.$=function $(val){if(val)this.valueOf=this.toSource=this.toString=function(){return val};return val;};
 
 addon.webhook('room_message', /\/target\s*([\S\s]*)$/i, function  * () {
     var mainArray = dict.getVal(this.sender.name);
@@ -97,21 +105,59 @@ addon.webhook('room_message', /^\/class\s*([a-z]+)?/i, function  * () {
 	}
 
 });
-addon.webhook('room_message', /^[^\/].*/i, function  * () {
+addon.webhook('room_message', /^[^\/].*|^\/farm/i, function  * () {
+    logToFile(this.match[0]);
+    if (!globalMonTimer){
+        logToFile("In Timer setup");
+        globalMonTimer = setInterval(function(roomC, tar) {
+            var rand = Math.floor(Math.random() * gMonsterChance.length)
+            logToFile("Rand is currently: " + rand.toString());
+            logToFile("ArraySze is currently: " + gMonsterChance.length.toString());
+            tar.$(gMonsterChance[rand]);
+            //tar.$("Patrick");
+            if (tar != "undefined")
+            logToFile("Target is currently: " + tar);
+            printMessage("@"+tar + " hears something rustle in the distance...", "red", roomC, "text");
+            globalEnc = 21;
+            gMonsterChance.splice(rand, 1);
+            globalMonClear = setTimeout(function (tar) {
+                logToFile("grass timed out");
+                tar.$("");
+                if (gMonsterChance.length == 0){
+                fillMonsterChanceArray();
+                logToFile("Monster array is currently: " + gMonsterChance);
+                }
+            }, 30000, gTarget);
+
+        }, 300000, this.roomClient, gTarget)
+
+    }
 	if (alreadyattacking) {
 		return;
 	}
-    if (!increaseMonsterChance[this.sender.name]){
+    var trigger = false;
+    logToFile("vars")
+    logToFile(this.match[0] == "/farm")
+    logToFile((globalEnc == 21))
+    logToFile(this.sender.mention_name == gTarget)
+    logToFile(gTarget +", " + this.sender.mention_name);
+    if ((this.match[0] == "/farm") && (globalEnc == 21) && (this.sender.mention_name == gTarget)){
+        logToFile("In /farm");
+        globalEnc = 0;
+        trigger = true;
+    }
+
+    if (!increaseMonsterChance[this.sender.name] && (this.sender.name != "$")){
         increaseMonsterChance[this.sender.name] = 1;
     }
-	var doweatk = randFromRange(increaseMonsterChance[this.sender.name], 20);
+	var doweatk = randFromRange(increaseMonsterChance[this.sender.name], 30);
     logToFile("Monster encounter rolls: " + doweatk.toString());
-	if (parseInt(doweatk) == 17 || globalEnc == 21) {
-        globalEnc = 0;
+	if (parseInt(doweatk) == 17 || trigger) {
 		initPlayer(this.sender.name);
 		alreadyattacking = true;
 		underattack = this.sender.name;
 		// lets get player level
+        clearTimeout(globalMonClear);
 		var playerLevel = dict.getVal(this.sender.name)[0][4];
 		levelofMob = randFromRange(1, (playerLevel +1));
 		// attackdmg = (Math.floor(Math.random() * (levelofMob *5)) + levelofMob);
@@ -139,10 +185,11 @@ addon.webhook('room_message', /^[^\/].*/i, function  * () {
 				mainArray = dict.getVal(name);
 				mainArray[0] = stats;
 				dict.update(name, mainArray);
+                trigger = false
 			}, 30000, this.roomClient, this.sender.name);
     }
     increaseMonsterChance[this.sender.name] = 1;
-
+    trigger = false
 
 	return;
 });
@@ -157,10 +204,14 @@ addon.webhook('room_message', /\/stats\s*([\S]*)$/i, function  * () {
             stats_process = false;
             return yield printMessage("It's too soon for stats all.", "red", this.roomClient, "text");
         }
+    
         statsAll = true;
         var printString = "";
         for (var i in dict.Keys){
+            try{
+      
             var personName = dict.Keys[i];
+
             logToFile("Looping thru " + personName);
             var tempPlayerArray = dict.getVal(personName);
             var tempPlayerStats = tempPlayerArray[0];
@@ -172,6 +223,9 @@ addon.webhook('room_message', /\/stats\s*([\S]*)$/i, function  * () {
                 + tempPlayerStats[4] + " | EXP: " + tempPlayerStats[3] 
                 + " | pepper: " + tempPlayerStats[1].toString() 
                 + " | seasoning modifier: " + tempPlayerStats[2].toString(), "yellow", this.roomClient, "text");
+            }catch(err){
+                logToFile(err);
+            }
 
         }
             statsTimer = setTimeout(function (room) {
@@ -366,21 +420,38 @@ addon.webhook('room_message', /^\/attack/i, function * () {
 });
 
 function getAllPeople(people){
-var LineByLineReader = require('line-by-line'),
-    lr = new LineByLineReader('people.txt');
+    var LineByLineReader = require('line-by-line'),
+        lr = new LineByLineReader('people.txt');
 
-lr.on('error', function (err) {
-    // 'err' contains error object
-});
+    lr.on('error', function (err) {
+        // 'err' contains error object
+    });
 
-lr.on('line', function (line) {
-    increaseMonsterChance[line] = 1;
-    logToFile(line);
-});
+    lr.on('line', function (line) {
+        increaseMonsterChance[line] = 1;
+        logToFile(line);
+    });
 
-lr.on('end', function () {
-    // All lines are read, file is closed now.
-});
+    lr.on('end', function () {
+        // All lines are read, file is closed now.
+    });
+}
+function fillMonsterChanceArray(){
+    var LineByLineReader = require('line-by-line'),
+        lr = new LineByLineReader('peopleTag.txt');
+
+    lr.on('error', function (err) {
+        // 'err' contains error object
+    });
+
+    lr.on('line', function (line) {
+        gMonsterChance.push(line);
+        logToFile(gMonsterChance);
+    });
+
+    lr.on('end', function () {
+        // All lines are read, file is closed now.
+    });
 }
 
 
@@ -699,11 +770,7 @@ loadData();
 app.listen();
 getAllPeople(peopleInRoom);
 logToFile(peopleInRoom);
-var gblMonTmr = setInterval(function() {
- logToFile("Changing Global Encounter to 18.") 
- globalEnc = 21;
-
-}, 300000)
+fillMonsterChanceArray();
 
 var timer = setInterval(function() {
  logToFile("Adding 1 to everyone") 
@@ -714,5 +781,5 @@ var timer = setInterval(function() {
     logToFile(i + "'s chances are now " + increaseMonsterChance[i]);
  }
 
-}, 30000)
+}, 60000)
 
