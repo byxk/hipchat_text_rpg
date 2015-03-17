@@ -1,5 +1,8 @@
-// data: [ARRAY[HP,PEPPERPOINTS,SEASONINGMOD,EXP, LEVEL],ARRAY[ITEMS],ARRAY[CLASSNAME, numOfReRolls, target]]
-var typesOfMonsters = ["globin", "poring", "Ghostly Josh", "Headless Jimmy", "Spooky Jennie", "Playboy Rob", "Mad Patrick", "Crazy Leo", "Sad Caledonia", "Master Imran"];
+// data: [ARRAY[HP,PEPPERPOINTS,SEASONINGMOD,EXP, LEVEL, GOLD],ARRAY[ITEMS],ARRAY[CLASSNAME, numOfReRolls, target]]
+var typesOfMonsters = ["globin", "poring", "Ghostly Josh", "Headless Jimmy", "Spooky Jennie", 
+"Playboy Rob", "Mad Patrick", "Crazy Leo", "Sad Caledonia", 
+"Master Imran", "Giant Josh", "Grapefruit Jimmy", "Fried Rob", "Potato Leo",
+"Chicken Jennie", "Soup Caledonia", "Icecream Imran", "Sandwich Patrick"];
 var foodDrops = ["an Apple", "a Potato", "Jimmy's sandwich", "Josh's bacon", "Jennie's fruit punch", "Rob's pills", "Patrick's JapaDog", "Leo's Monopoly", "Caledonia's Waterbottle", "Imran's Resume"];
 var classTypes = ["Cleric", "Mage", "Princess", "Warrior"];
 var monsterLevelDice = [20,30,40,50,60];
@@ -117,7 +120,7 @@ addon.webhook('room_message', /^[^\/].*|^\/farm/i, function  * () {
             //tar.$("Patrick");
             if (tar != "undefined")
             logToFile("Target is currently: " + tar);
-            printMessage("@"+tar + " hears something rustle in the distance...", "red", roomC, "text");
+            printMessage("@"+tar + " hears something rustle in the tall grass...poke ball ready...", "purple", roomC, "text");
             globalEnc = 21;
             gMonsterChance.splice(rand, 1);
             globalMonClear = setTimeout(function (tar) {
@@ -136,11 +139,6 @@ addon.webhook('room_message', /^[^\/].*|^\/farm/i, function  * () {
 		return;
 	}
     var trigger = false;
-    logToFile("vars")
-    logToFile(this.match[0] == "/farm")
-    logToFile((globalEnc == 21))
-    logToFile(this.sender.mention_name == gTarget)
-    logToFile(gTarget +", " + this.sender.mention_name);
     if ((this.match[0] == "/farm") && (globalEnc == 21) && (this.sender.mention_name == gTarget)){
         logToFile("In /farm");
         globalEnc = 0;
@@ -173,7 +171,7 @@ addon.webhook('room_message', /^[^\/].*|^\/farm/i, function  * () {
         yield printMessage("Quickly @" + this.sender.mention_name + ", the level "
             + levelofMob.toString()
             + " " + monsterType + " is going after you! Roll a 1d20 and defeat it. You must beat a " + hp +". Rolling for attack damage...","red", this.roomClient,"text");
-        yield printMessage(formatRoll(Math.ceil(levelofMob/2), 8, 0, attackdmg, monsterType), "red", this.roomClient, "text");
+        yield printMessage(formatRoll(Math.ceil(levelofMob/2), 8, 0, attackdmg, monsterType), "red", this.roomClient, "html");
 		logToFile("Starting to wait for player " + underattack);
 		monsterTimer = setTimeout(function (room, name) {
 				logToFile("Monster timed out");
@@ -317,7 +315,8 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 		var totalString = "";
 		var total = 0;
 		if (!this.match[1] && !this.match[2] && !this.match[3]) {
-            classCast(this.sender.name, this.roomClient, dict);
+            if ((underattack == this.sender.name))
+                classCast(this.sender.name, this.roomClient, dict);
 			var mainArray = dict.getVal(this.sender.name);
 			var seasonMod = mainArray[0][2];
 			numofdice = 1;
