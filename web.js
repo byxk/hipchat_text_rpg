@@ -28,6 +28,7 @@ var monsterType = "";
 var monsterfoodDrop = "";
 var playerDiceType;
 var mainTimerDuration = 300000;
+var gainHP;
 var increaseMonsterChance = new Array();
 var gMonsterChance = new Array();
 var diceToRoll = 0;
@@ -179,6 +180,7 @@ addon.webhook('room_message', /^[^\/].*|^\/farm/i, function  * () {
         attackdmg = rollDice(Math.ceil(parseInt(levelofMob)/2),8, parseInt(levelofMob));
         logToFile("The monster rolled: " + attackdmg)
 		hp = randFromRange(levelofMob, 19);
+        gainHP = hp;
 		chanceOfFaith = (randFromRange(1,4)== 2);
 		amountofExp = randFromRange(0,10);
 		monsterType = typesOfMonsters[Math.floor(Math.random() * typesOfMonsters.length)];
@@ -366,7 +368,7 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 			if (parseInt(total) > hp) {
 
 				if (total == 20) (amountofExp = amountofExp * 2);
-				yield this.roomClient.sendNotification("@" + this.sender.mention_name + ' defeated the ' + monsterType + ' and got ' + monsterfoodDrop + ' that restores ' + Math.floor(hp/2) + " hp along with " + amountofExp + " exp!", {
+				yield this.roomClient.sendNotification("@" + this.sender.mention_name + ' defeated the ' + monsterType + ' and got ' + monsterfoodDrop + ' that restores ' + Math.floor(gainHP) + " hp along with " + amountofExp + " exp!", {
 					color : 'purple',
 					format : 'text'
 				});
@@ -376,7 +378,7 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 				amountofExp = 0;
 				stats[2] = 0;
 
-				stats[0] = parseInt(stats[0]) + Math.floor(hp/2);
+				stats[0] = parseInt(stats[0]) + Math.floor(gainHP);
 				if (chanceOfFaith) {
 					chanceOfFaith = false;
 					yield this.roomClient.sendNotification('The monster dropped some pepper! @' + this.sender.mention_name + ' gained 1 pepper.', {
@@ -626,6 +628,7 @@ function classCast(playername, roomClient, mainDict, admg){
                     printMessage(playername + " executes <b>Death From Above</b> added <b>"+attackModi.toString()+"</b> to the seasoning modifier.", "random", roomClient, "html");
                 }
                 admg.$(admg * playerClass[3] + mainArray[0][4]*attackModi);
+                gainHP = Math.floor(gainHP/playerClass[3]);
                 mainArray[2] = playerClass;
                 dict.update(playername, mainArray);
                 break;
