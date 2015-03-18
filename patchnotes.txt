@@ -1,0 +1,8 @@
+3/18/2015:
+* Nerfed heals gained from killing mobs.
+* Added basic shop support (hp pots only)
+* Increased dmg of magic missiles 
+* Nerfed mob dmg
+* Mobs drop gold.
+* increased chance of ability casting
+* Increased timer of fighting back against monsters from 30s to 60s
