@@ -5,6 +5,7 @@ var typesOfMonsters = ["globin", "poring", "Ghostly Josh", "Headless Jimmy", "Sp
 "Chicken Jennie", "Soup Caledonia", "Icecream Imran", "Sandwich Patrick"];
 var foodDrops = ["an Apple", "a Potato", "Jimmy's sandwich", "Josh's bacon", "Jennie's fruit punch", "Rob's pills", "Patrick's JapaDog", "Leo's Monopoly", "Caledonia's Waterbottle", "Imran's Resume"];
 var classTypes = ["Cleric", "Mage", "Princess", "Warrior"];
+var mainShop = ["HealthPotion:15", "Pepper:10", "RerollCharm:50"]
 var monsterLevelDice = [20,30,40,50,60];
 var ack = require('ac-koa').require('hipchat');
 var pkg = require('./package.json');
@@ -38,9 +39,11 @@ var inventory_process = false;
 var stats_process = false;
 var globalMonTimer;
 var globalMonClear;
+var monsterGoldDrop;
 var gTarget = Object("");
 var peopleInRoom;
 var globalRoom;
+var shop_process;
 var addon = app.addon()
 	.hipchat()
 	.allowRoom(true)
@@ -54,7 +57,34 @@ String.prototype.startsWith = function(prefix) {
 }
 // Object reference maker
 Object.prototype.$=function $(val){if(val)this.valueOf=this.toSource=this.toString=function(){return val};return val;};
+function isInArray(value, array) {
+  return array.indexOf(value) > -1;
+}
+addon.webhook('room_message', /\/shop\s+(?:(\S+)\s+)*/i, function  * () {
+    if (!shop_process){
+        return
+    }
+    shop_process = true;
+    if (!this.match[2]){
+        printMessage("Buy and use an item automatically with /shop buy itemname. ItemName:GoldCost", "green", this.roomClient);
+        printMessage(mainShop.toString(), "green", this.roomClient);
+        shop_process = false;
+        return;
+    }
+    var itemToBuy = this.match[2];
+    if (!isInArray(itemToBuy, mainShop)){
+        shop_process = false;
+        return yield printMessage("No such item exists.", "yellow", this.roomClient);
+    }
+    var playerGold = parseInt(dict.getVal(this.sender.name)[0][5]);
+    var costOfItem = parseInt(itemToBuy.split(":")[1]);
+    if (costOfItem > playerGold){
+        shop_process = false;
+        return yield printMessage("Not enough gold to buy item. " + this.sender.name + " has " + playerGold.toString() + " .", "yellow", this.roomClient);
+    }
 
+    shop_process = false;
+});
 addon.webhook('room_message', /\/target\s*([\S\s]*)$/i, function  * () {
     var mainArray = dict.getVal(this.sender.name);
     var pclass = mainArray[2];
@@ -75,9 +105,8 @@ addon.webhook('room_message', /\/target\s*([\S\s]*)$/i, function  * () {
     pclass[2] = target.toString();
     mainArray[2] = pclass;
     dict.update(this.sender.name, mainArray);
-
-
 });
+
 addon.webhook('room_message', /^\/class\s*([a-z]+)?/i, function  * () {
 	logToFile(this.match[1]);
 	if (this.match[1] == "plsgivemesomethinggood"){
@@ -120,6 +149,7 @@ addon.webhook('room_message', /^[^\/].*|^\/farm/i, function  * () {
             logToFile("Current hour: " + today);
             // time on vm
             if (today <= 24 && today >= 16 && !alreadyattacking) {
+
                 var rand = Math.floor(Math.random() * gMonsterChance.length)
                 logToFile("Rand is currently: " + rand.toString());
                 logToFile("ArraySze is currently: " + gMonsterChance.length.toString());
@@ -175,13 +205,14 @@ addon.webhook('room_message', /^[^\/].*|^\/farm/i, function  * () {
         }
 		// attackdmg = (Math.floor(Math.random() * (levelofMob *5)) + levelofMob);
         // roll a xd8
-        attackdmg = (rollDice(Math.ceil(parseInt(levelofMob)/2),8, parseInt(levelofMob)));
+        monsterRoll = 
+        attackdmg = (rollDice(Math.ceil(parseInt(levelofMob)/2),8,0));
         logToFile("The monster rolled: " + attackdmg.toString());
         if (levelofMob > 19) levelofMob == 18;
 		hp = randFromRange(levelofMob, 19);
-        gainHP = hp;
+        gainHP = Math.ceil(hp/playerLevel);
 		chanceOfFaith = (randFromRange(1,4)== 2);
-		amountofExp = randFromRange(0,10);
+		amountofExp = randFromRange(1,10);
 		monsterType = typesOfMonsters[Math.floor(Math.random() * typesOfMonsters.length)];
 		monsterfoodDrop = foodDrops[Math.floor(Math.random() * foodDrops.length)];
 		diceToRoll = playerLevel;
@@ -266,7 +297,7 @@ addon.webhook('room_message', /\/stats\s*([\S]*)$/i, function  * () {
           "</table>";*/
 
     var tableString = "<table><tr><th>"+this.sender.mention_name + ":</th><th>Class</th><th>HP</th><th>Level</th><th>EXP</th><th>Pepper</th><th>Seasoning</th><th>Gold</th></tr>" +
-    	"<tr><td></td><td>" +pclass[0]+"</td><td>"+stats[0].toString()+"</td><td>"+stats[4]+"</td><td>"+stats[3]+"</td><td>"+stats[1]+"</td><td>"+stats[2]+"</td><td>"+stats[5]+"</td></tr></table>";
+    	"<tr><td></td><td>" +pclass[0]+"</td><td>"+stats[0].toString()+"</td><td>"+stats[4]+"</td><td>"+stats[3]+"</td><td>"+stats[1]+"</td><td>"+stats[2].toString()+"</td><td>"+stats[5].toString()+"</td></tr></table>";
 
     yield printMessage(tableString, "green", this.roomClient, "html");
     //printMessage(tableString, "green", this.roomClient, "html");
@@ -615,7 +646,7 @@ function classCast(playername, roomClient, mainDict, admg){
                 printMessage(playername + " peppered <b>magic missiles</b> and added <b>" + magicPower.toString() + "</b> to seasoning modifier.", "random", roomClient, "html");
                 var stats = mainArray[0];
                 stats[2] = parseInt(stats[2]) + parseInt(magicPower);
-                logToFile("Magic Missiles added: " + stats[2].toString());
+                logToFile("Magic Missiles added: " + stats.toString());
                 mainArray[0] = stats;
                 logToFile("Magic Missiles added to MA: " + mainArray[0][2].toString());
                 dict.update(playername, mainArray);
@@ -635,8 +666,8 @@ function classCast(playername, roomClient, mainDict, admg){
                     printMessage(playername + " executes <b>Death From Above</b> added <b>"+attackModi.toString()+"</b> to the seasoning modifier.", "random", roomClient, "html");
                 }
                 logToFile("atk dmg before cast: " + attackdmg.toString());
-                attackdmg[0] = (attackdmg * playerClass[3] + mainArray[0][4]*attackModi);
-                logToFile("Attack dmg is currently: " + admg)
+                attackdmg[0] = (attackdmg[0] * playerClass[3] + mainArray[0][4]*attackModi);
+                logToFile("Attack dmg is currently: " + attackdmg[0])
                 gainHP = Math.floor(gainHP/playerClass[3]);
                 if (gainHP == 0) gainHP = 1;
                 mainArray[2] = playerClass;
