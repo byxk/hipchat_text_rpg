@@ -5,7 +5,7 @@ var typesOfMonsters = ["globin", "poring", "Ghostly Josh", "Headless Jimmy", "Sp
 "Chicken Jennie", "Soup Caledonia", "Icecream Imran", "Sandwich Patrick"];
 var foodDrops = ["an Apple", "a Potato", "Jimmy's sandwich", "Josh's bacon", "Jennie's fruit punch", "Rob's pills", "Patrick's JapaDog", "Leo's Monopoly", "Caledonia's Waterbottle", "Imran's Resume"];
 var classTypes = ["Cleric", "Mage", "Princess", "Warrior"];
-var mainShop = ["HealthPotion:15", "Pepper:10", "RerollCharm:50"]
+var mainShop = ["HealthPotion"]
 var monsterLevelDice = [20,30,40,50,60];
 var ack = require('ac-koa').require('hipchat');
 var pkg = require('./package.json');
@@ -60,28 +60,43 @@ Object.prototype.$=function $(val){if(val)this.valueOf=this.toSource=this.toStri
 function isInArray(value, array) {
   return array.indexOf(value) > -1;
 }
-addon.webhook('room_message', /\/shop\s+(?:(\S+)\s+)*/i, function  * () {
-    if (!shop_process){
+addon.webhook('room_message', /^\/shop\s*([a-z]+)?\s*([a-z]+)?/i, function  * () {
+    if (shop_process){
         return
     }
     shop_process = true;
-    if (!this.match[2]){
-        printMessage("Buy and use an item automatically with /shop buy itemname. ItemName:GoldCost", "green", this.roomClient);
-        printMessage(mainShop.toString(), "green", this.roomClient);
+    if (this.match[1] != "buy" || !this.match[2] ){
+        printMessage("Buy and use an item automatically with /shop buy itemname.", "green", this.roomClient);
+        printMessage("Health Potion - 15g", "green", this.roomClient);
         shop_process = false;
         return;
     }
-    var itemToBuy = this.match[2];
-    if (!isInArray(itemToBuy, mainShop)){
+    var buyingItem = this.match[2];
+    logToFile(this.match[2] == "healthpotion");
+    if (this.match[2] != "healthpotion"){
         shop_process = false;
-        return yield printMessage("No such item exists.", "yellow", this.roomClient);
+        return yield printMessage("No such item exists.", "green", this.roomClient);
     }
+    // just gonna have a static shop for now
     var playerGold = parseInt(dict.getVal(this.sender.name)[0][5]);
-    var costOfItem = parseInt(itemToBuy.split(":")[1]);
-    if (costOfItem > playerGold){
-        shop_process = false;
-        return yield printMessage("Not enough gold to buy item. " + this.sender.name + " has " + playerGold.toString() + " .", "yellow", this.roomClient);
+    var mainArray = dict.getVal(this.sender.name);
+    var stats = mainArray[0];
+    logToFile("In shopbuying: " + stats)
+    if (this.match[2] == "healthpotion"){
+        if (15 > playerGold) {
+            shop_process = false;
+            return yield printMessage("Not enough gold.", "green", this.roomClient);
+        }else{
+            stats[5] -= 15;
+            // hp heals for 30
+            stats[0] += 30;
+            mainArray[0] = stats;
+            dict.update(this.sender.name, mainArray);
+            shop_process = false;
+            return yield printMessage("HP potion bought and used automatically, +30hp.", "green", this.roomClient);
+        }
     }
+
 
     shop_process = false;
 });
@@ -205,7 +220,6 @@ addon.webhook('room_message', /^[^\/].*|^\/farm/i, function  * () {
         }
 		// attackdmg = (Math.floor(Math.random() * (levelofMob *5)) + levelofMob);
         // roll a xd8
-        monsterRoll = 
         attackdmg = (rollDice(Math.ceil(parseInt(levelofMob)/2),8,0));
         logToFile("The monster rolled: " + attackdmg.toString());
         if (levelofMob > 19) levelofMob == 18;
@@ -213,6 +227,7 @@ addon.webhook('room_message', /^[^\/].*|^\/farm/i, function  * () {
         gainHP = Math.ceil(hp/playerLevel);
 		chanceOfFaith = (randFromRange(1,4)== 2);
 		amountofExp = randFromRange(1,10);
+        monsterGoldDrop = randFromRange(1,levelofMob);
 		monsterType = typesOfMonsters[Math.floor(Math.random() * typesOfMonsters.length)];
 		monsterfoodDrop = foodDrops[Math.floor(Math.random() * foodDrops.length)];
 		diceToRoll = playerLevel;
@@ -233,7 +248,7 @@ addon.webhook('room_message', /^[^\/].*|^\/farm/i, function  * () {
 				mainArray[0] = stats;
 				dict.update(name, mainArray);
                 trigger = false
-			}, 30000, this.roomClient, this.sender.name);
+			}, 60000, this.roomClient, this.sender.name);
     }
     increaseMonsterChance[this.sender.name] = 1;
     trigger = false
@@ -241,7 +256,7 @@ addon.webhook('room_message', /^[^\/].*|^\/farm/i, function  * () {
 	return;
 });
 
-addon.webhook('room_message', /\/stats\s*([\S]*)$/i, function  * () {
+addon.webhook('room_message', /^\/stats\s*([\S]*)$/i, function  * () {
 	if (stats_process)
 		return;
 	stats_process = true;
@@ -400,14 +415,16 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 			if (parseInt(total) > hp) {
 
 				if (total == 20) (amountofExp = amountofExp * 2);
-				yield this.roomClient.sendNotification("@" + this.sender.mention_name + ' defeated the ' + monsterType + ' and got ' + monsterfoodDrop + ' that restores ' + Math.floor(gainHP) + " hp along with " + amountofExp + " exp!", {
+				yield this.roomClient.sendNotification("@" + this.sender.mention_name + ' defeated the ' + monsterType + ' and got ' + monsterfoodDrop + ' that restores ' + Math.floor(gainHP) + " hp along with " + amountofExp + " exp and " + monsterGoldDrop.toString() + " gold!", {
 					color : 'purple',
 					format : 'text'
 				});
 				stats = dict.getVal(this.sender.name)[0];
 				stats[3] = stats[3] + amountofExp;
+                stats[5] = parseInt(stats[5]) + parseInt(monsterGoldDrop);
 				stats[4] = Math.floor(stats[3] / 20);
 				amountofExp = 0;
+                monsterGoldDrop = 0;
 				stats[2] = 0;
 
 				stats[0] = parseInt(stats[0]) + Math.floor(gainHP);
