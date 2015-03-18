@@ -19,7 +19,7 @@ var underattack = "";
 var alreadyrolling = "";
 var hp = 0;
 var dict = new JSdict();
-var attackdmg = Object(0);
+var attackdmg;
 var chanceOfFaith = false;
 var amountofExp = false;
 var statsAll = false;
@@ -55,13 +55,6 @@ String.prototype.startsWith = function(prefix) {
 // Object reference maker
 Object.prototype.$=function $(val){if(val)this.valueOf=this.toSource=this.toString=function(){return val};return val;};
 
-addon.webhook('room_message', /\/gmattack\s*([\S\s]*)$/i, function  * () {
-    if (this.sender.name != "Patrick Tseng") return;
-    logToFile("GM ABILITY");
-    globalEnc = 21;
-    gTarget = this.match[1];
-
-});
 addon.webhook('room_message', /\/target\s*([\S\s]*)$/i, function  * () {
     var mainArray = dict.getVal(this.sender.name);
     var pclass = mainArray[2];
@@ -116,6 +109,7 @@ addon.webhook('room_message', /^\/class\s*([a-z]+)?/i, function  * () {
 	}
 
 });
+
 addon.webhook('room_message', /^[^\/].*|^\/farm/i, function  * () {
     logToFile(this.match[0]);
 
@@ -125,7 +119,7 @@ addon.webhook('room_message', /^[^\/].*|^\/farm/i, function  * () {
             var today = new Date().getHours();
             logToFile("Current hour: " + today);
             // time on vm
-            if (today <= 24 && today >= 16) {
+            if (today <= 24 && today >= 16 && !alreadyattacking) {
                 var rand = Math.floor(Math.random() * gMonsterChance.length)
                 logToFile("Rand is currently: " + rand.toString());
                 logToFile("ArraySze is currently: " + gMonsterChance.length.toString());
@@ -174,11 +168,16 @@ addon.webhook('room_message', /^[^\/].*|^\/farm/i, function  * () {
 		// lets get player level
         clearTimeout(globalMonClear);
 		var playerLevel = dict.getVal(this.sender.name)[0][4];
-		levelofMob = randFromRange(1, (playerLevel +1));
+        if ((playerLevel - 2) <=0) {
+            levelofMob = 1
+        }else{
+		  levelofMob = randFromRange(playerLevel-2, (playerLevel +1));
+        }
 		// attackdmg = (Math.floor(Math.random() * (levelofMob *5)) + levelofMob);
         // roll a xd8
-        attackdmg = rollDice(Math.ceil(parseInt(levelofMob)/2),8, parseInt(levelofMob));
-        logToFile("The monster rolled: " + attackdmg)
+        attackdmg = (rollDice(Math.ceil(parseInt(levelofMob)/2),8, parseInt(levelofMob)));
+        logToFile("The monster rolled: " + attackdmg.toString());
+        if (levelofMob > 19) levelofMob == 18;
 		hp = randFromRange(levelofMob, 19);
         gainHP = hp;
 		chanceOfFaith = (randFromRange(1,4)== 2);
@@ -189,7 +188,8 @@ addon.webhook('room_message', /^[^\/].*|^\/farm/i, function  * () {
         yield printMessage("Quickly @" + this.sender.mention_name + ", the level "
             + levelofMob.toString()
             + " " + monsterType + " is going after you! Roll a 1d20 and defeat it. You must beat a " + hp +". Rolling for attack damage...","red", this.roomClient,"text");
-        yield printMessage(formatRoll(Math.ceil(levelofMob/2), 8, 0, attackdmg, monsterType), "red", this.roomClient, "html");
+        logToFile("Attack Damage in first enc: " + attackdmg.toString())
+        yield printMessage(formatRoll(Math.ceil(levelofMob/2), 8, parseInt(levelofMob), attackdmg, monsterType), "red", this.roomClient, "html");
 		logToFile("Starting to wait for player " + underattack);
 		monsterTimer = setTimeout(function (room, name) {
 				logToFile("Monster timed out");
@@ -335,6 +335,7 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 		if (!this.match[1] && !this.match[2] && !this.match[3]) {
             if ((underattack == this.sender.name)){
                 classCast(this.sender.name, this.roomClient, dict, attackdmg);
+                logToFile("ATTACK dmg in main thread: " + attackdmg.toString());
             }
 			var mainArray = dict.getVal(this.sender.name);
 			var seasonMod = mainArray[0][2];
@@ -403,7 +404,9 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 				stats[2] = 0;
 				stats[0] = parseInt(stats[0]) - parseInt(attackdmg[0]);
                 mainArray[2][3] = 0;
-				if (stats[0] <=0){
+                logToFile("Current hp after loss: " + stats[0]);
+				if (parseInt(stats[0]) <= 0){
+                    logToFile("Dead player");
 					yield this.roomClient.sendNotification("@" + this.sender.mention_name + ' has died.', {
 					color : 'red',
 					format : 'text'
@@ -481,7 +484,11 @@ function fillMonsterChanceArray(){
 
 // USAGE: Print this string with "@UserX: " appended to the front.
 function formatRoll (num, sides, mod, res, playername) {
-	var pre_str = "@" + playername + " rolled " + num + "d" + sides + "+" + mod + ": ";
+    logToFile(num)
+    logToFile(sides)
+    logToFile(mod)
+    logToFile(res)
+	var pre_str = "@" + playername + " rolled " + num.toString() + "d" + sides.toString() + "+" + mod.toString() + ": ";
 
 	var res_str = "(";
 	for (var i = 1; i < num+1; i++) {
@@ -627,8 +634,11 @@ function classCast(playername, roomClient, mainDict, admg){
                     playerClass[3] += attackModi;
                     printMessage(playername + " executes <b>Death From Above</b> added <b>"+attackModi.toString()+"</b> to the seasoning modifier.", "random", roomClient, "html");
                 }
-                admg.$(admg * playerClass[3] + mainArray[0][4]*attackModi);
+                logToFile("atk dmg before cast: " + attackdmg.toString());
+                attackdmg[0] = (attackdmg * playerClass[3] + mainArray[0][4]*attackModi);
+                logToFile("Attack dmg is currently: " + admg)
                 gainHP = Math.floor(gainHP/playerClass[3]);
+                if (gainHP == 0) gainHP = 1;
                 mainArray[2] = playerClass;
                 dict.update(playername, mainArray);
                 break;
