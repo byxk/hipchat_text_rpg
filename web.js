@@ -67,7 +67,7 @@ addon.webhook('room_message', /^\/shop\s*([a-z]+)?\s*([a-z]+)?/i, function  * ()
     shop_process = true;
     if (this.match[1] != "buy" || !this.match[2] ){
         printMessage("Buy and use an item automatically with /shop buy itemname.", "green", this.roomClient);
-        printMessage("Health Potion - 15g | Pepper - 2g | Reroll - 5g", "green", this.roomClient);
+        printMessage("Health Potion - 15g | Pepper - 3g | Bay leaf - 5g", "green", this.roomClient);
         shop_process = false;
         return;
     }
@@ -97,7 +97,7 @@ addon.webhook('room_message', /^\/shop\s*([a-z]+)?\s*([a-z]+)?/i, function  * ()
             shop_process = false;
             return yield printMessage("Not enough gold.", "green", this.roomClient);
         }else{
-            stats[5] -= 2;
+            stats[5] -= 3;
             // hp heals for 30
             stats[1] += 1;
             mainArray[0] = stats;
@@ -116,7 +116,7 @@ addon.webhook('room_message', /^\/shop\s*([a-z]+)?\s*([a-z]+)?/i, function  * ()
             mainArray[2] = playerClass;
             dict.update(this.sender.name, mainArray);
             shop_process = false;
-            return yield printMessage("Class reroll bought and stored.", "green", this.roomClient);  
+            return yield printMessage("Bay leaf bought and stored.", "green", this.roomClient);  
         }
     }else{
         shop_process = false;
@@ -175,7 +175,7 @@ addon.webhook('room_message', /^\/class\s*([a-z]+)?/i, function  * () {
         mainArray[2] = pclass;
         dict.update(this.sender.name, mainArray);
 		printMessage("Available classes: Cleric, Mage, Warrior, Princess. Choose with /class plsgivemesomethinggood. @" +
-            this.sender.mention_name + " has " + pclass[1] + " reroll(s) left!", "yellow", this.roomClient, "text");
+            this.sender.mention_name + " has " + pclass[1] + "x [Bay leaf] left!", "yellow", this.roomClient, "text");
 	}
 
 });
@@ -311,12 +311,11 @@ addon.webhook('room_message', /^\/stats\s*([\S]*)$/i, function  * () {
             var tempPlayerStats = tempPlayerArray[0];
             var tempPlayerClass = tempPlayerArray[2];
 
-            yield printMessage(personName + "'s stats | class: " 
+            yield printMessage(personName + "'s stats | " 
                 + tempPlayerClass[0] + " | hp: " 
                 + tempPlayerStats[0].toString() + " | Level: " 
                 + tempPlayerStats[4] + " | EXP: " + tempPlayerStats[3] 
-                + " | pepper: " + tempPlayerStats[1].toString() 
-                + " | seasoning modifier: " + tempPlayerStats[2].toString(), "yellow", this.roomClient, "text");
+                + " | pepper: " + tempPlayerStats[1].toString(), "yellow", this.roomClient, "text");
             }catch(err){
                 logToFile(err);
             }
