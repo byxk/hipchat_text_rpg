@@ -1,4 +1,4 @@
-// data: [ARRAY[HP,PEPPERPOINTS,SEASONINGMOD,EXP, LEVEL, GOLD],ARRAY[ITEMS],ARRAY[CLASSNAME, numOfReRolls, target]]
+// data: [ARRAY[HP,PEPPERPOINTS,SEASONINGMOD,EXP, LEVEL, GOLD],ARRAY[ITEMS],ARRAY[CLASSNAME, numOfReRolls, target, warrior mod]]
 var typesOfMonsters = ["globin", "poring", "Ghostly Josh", "Headless Jimmy", "Spooky Jennie", 
 "Playboy Rob", "Mad Patrick", "Crazy Leo", "Sad Caledonia", 
 "Master Imran", "Giant Josh", "Grapefruit Jimmy", "Fried Rob", "Potato Leo",
@@ -29,10 +29,13 @@ var monsterType = "";
 var monsterfoodDrop = "";
 var playerDiceType;
 var mainTimerDuration = 300000;
+var arenaStartLobby = false;
+var arenaPlayers = new Array();
 var gainHP;
 var increaseMonsterChance = new Array();
 var gMonsterChance = new Array();
 var diceToRoll = 0;
+var arenaStarted = new Object(false);
 var levelofMob = 1;
 var prayer_process = false;
 var inventory_process = false;
@@ -67,7 +70,7 @@ addon.webhook('room_message', /^\/shop\s*([a-z]+)?\s*([a-z]+)?/i, function  * ()
     shop_process = true;
     if (this.match[1] != "buy" || !this.match[2] ){
         printMessage("Buy and use an item automatically with /shop buy itemname.", "green", this.roomClient);
-        printMessage("Health Potion - 15g | Pepper - 3g | Bay leaf - 5g", "green", this.roomClient);
+        printMessage("HealthPotion - 15g | Pepper - 3g | Bayleaf - 5g | Arenatoken - 20g", "green", this.roomClient);
         shop_process = false;
         return;
     }
@@ -78,6 +81,7 @@ addon.webhook('room_message', /^\/shop\s*([a-z]+)?\s*([a-z]+)?/i, function  * ()
     var mainArray = dict.getVal(this.sender.name);
     var stats = mainArray[0];
     var playerClass = mainArray[2];
+    var inventory = mainArray[1];
     logToFile("In shopbuying: " + stats)
     if (this.match[2] == "healthpotion"){
         if (15 > playerGold) {
@@ -105,7 +109,7 @@ addon.webhook('room_message', /^\/shop\s*([a-z]+)?\s*([a-z]+)?/i, function  * ()
             shop_process = false;
             return yield printMessage("Pepper bought and stored.", "green", this.roomClient);  
         }
-    }else if (this.match[2] == "reroll"){
+    }else if (this.match[2] == "bayleaf"){
         if (5 > playerGold) {
             shop_process = false;
             return yield printMessage("Not enough gold.", "green", this.roomClient);
@@ -118,6 +122,19 @@ addon.webhook('room_message', /^\/shop\s*([a-z]+)?\s*([a-z]+)?/i, function  * ()
             shop_process = false;
             return yield printMessage("Bay leaf bought and stored.", "green", this.roomClient);  
         }
+    }else if (this.match[2] == "arenatoken"){
+        if (20 > playerGold) {
+            shop_process = false;
+            return yield printMessage("Not enough gold.", "green", this.roomClient);
+        }else{
+            stats[5] -= 20;
+            inventory.push("arenatoken");
+            mainArray[1] = inventory;
+            dict.update(this.sender.name, mainArray);
+            shop_process = false;
+            return yield printMessage("Arenatoken bought and stored in inventory.", "green", this.roomClient); 
+        }
+
     }else{
         shop_process = false;
         return yield printMessage("No such item exists.", "green", this.roomClient);
@@ -126,10 +143,9 @@ addon.webhook('room_message', /^\/shop\s*([a-z]+)?\s*([a-z]+)?/i, function  * ()
 
     shop_process = false;
 });
-addon.webhook('room_message', /\/target\s*([\S\s]*)$/i, function  * () {
+addon.webhook('room_message', /^\/target\s*([\S\s]*)$/i, function  * () {
     var mainArray = dict.getVal(this.sender.name);
     var pclass = mainArray[2];
-    var className = pclass[0];
     var target = this.match[1];
     logToFile(dict.Keys.length);
     if (!this.match[1]){ 
@@ -179,7 +195,39 @@ addon.webhook('room_message', /^\/class\s*([a-z]+)?/i, function  * () {
 	}
 
 });
+addon.webhook('room_message', /^\/arena\s*([a-z]+)?/i, function  * () {
+    return;
+    var mainArray = dict.getVal(this.sender.name);
+    var playerInventory = mainArray[1];
+    if (this.match[1] == "join" && arenaStartLobby && !isInArray(this.sender.name, arenaPlayers)){
+        arenaPlayers.push(this.sender.name);
+        
+        yield printMessage("@" + this.sender.mention_name + " has joined the arena! Need " + (3- arenaPlayers.length).toString() + " more players!", "yellow", this.roomClient, "text");
+        if (arenaPlayers.length == 3){
+            arenaPlayers = new Array();
+            arenaStartLobby = false;
+            yield printMessage("Enough players have joined! Starting arena. For the next minute, all message will trigger monster encounters!", "yellow", this.roomClient, "text");
+            arenaStarted.$(true);
+            logToFile("Starting arena");
+            var arenaTimer = setTimeout(function (start, room) {
+                    logToFile("ending arena");
+                    arenaStarted.$(false);
+                    printMessage("Arena has ended.", "green", room, "text");
+                }, 10000, arenaStarted, this.roomClient)
 
+        }
+    }else if (isInArray("arenatoken", playerInventory) && !arenaStartLobby){
+        playerInventory.splice(playerInventory.indexOf("arenatoken"), 1);
+        mainArray[1] = playerInventory;
+        dict.update(this.sender.name, mainArray);
+        yield printMessage("@" + this.sender.mention_name + " has started an arena! Requires 3 other players to start. Type '/arena join' to help start it!", "yellow", this.roomClient, "text");
+        arenaStartLobby = true;
+
+    }else{
+        return yield printMessage("No arena has been started", "yellow", this.roomClient, "text");
+    }
+    
+});
 addon.webhook('room_message', /^[^\/].*|^\/farm/i, function  * () {
     if (!globalMonTimer){
         logToFile("In Timer setup");
@@ -226,7 +274,8 @@ addon.webhook('room_message', /^[^\/].*|^\/farm/i, function  * () {
     }
 	var doweatk = randFromRange(increaseMonsterChance[this.sender.name], 20);
     logToFile("Monster encounter rolls: " + doweatk.toString());
-	if (parseInt(doweatk) == 17 || trigger) {
+    logToFile("Arena started?: " + arenaStarted.toString());
+	if (parseInt(doweatk) == 17 || trigger || arenaStarted == true) {
 
 		initPlayer(this.sender.name);
 		alreadyattacking = true;
@@ -254,7 +303,10 @@ addon.webhook('room_message', /^[^\/].*|^\/farm/i, function  * () {
         logToFile("Level of monster: " + levelofMob);
 
         gainHP = Math.ceil(hp/playerLevel);
-        logToFile("HP2 of monster :" + hp);
+        if (gainHP == "Infinity"){
+            gainHP = 1;
+        }
+        logToFile("GainHp: " + gainHP);
 		chanceOfFaith = (randFromRange(1,4)== 2);
 		amountofExp = randFromRange(1,10);
         logToFile("HP3 of monster :" + hp);
@@ -430,13 +482,13 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
             underattack == "";
             alreadyattacking = false;
 			logToFile("TOTAL ROLL: " + total);
+			if (parseInt(total) >= hp) {
 
-           // I don't know how JS does the scopes of vars, so putting this function directly in here
+				if (total == 20){
+                    amountofExp = amountofExp * 2;
+                    monsterGoldDrop = monsterGoldDrop * 2;
+                }
 
-
-			if (parseInt(total) > hp) {
-
-				if (total == 20) (amountofExp = amountofExp * 2);
 				yield this.roomClient.sendNotification("@" + this.sender.mention_name + ' defeated the ' + monsterType + ' and got ' + monsterfoodDrop + ' that restores ' + Math.floor(gainHP) + " hp along with " + amountofExp + " exp and " + monsterGoldDrop.toString() + " gold!", {
 					color : 'purple',
 					format : 'text'
@@ -444,7 +496,11 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 				stats = dict.getVal(this.sender.name)[0];
 				stats[3] = stats[3] + amountofExp;
                 stats[5] = parseInt(stats[5]) + parseInt(monsterGoldDrop);
+                var currentLevel = stats[4];
 				stats[4] = Math.floor(stats[3] / 20);
+                if (currentLevel < stats[4]){
+                    yield printMessage("@" + this.sender.mention_name + " has leveled up and is now level " + stats[4].toString() + ".", "yellow", this.roomClient, "text");
+                }
 				amountofExp = 0;
                 monsterGoldDrop = 0;
 				stats[2] = 0;
@@ -605,13 +661,13 @@ function rollDice (num, sides, mod) {
 		res.push(randFromRange(1, sides));
 		res[0] += res[i];
 	}
-    res[0] += parseInt(mod);
+    res[0] = parseInt(res[0]) + parseInt(mod);
 	return res;
 }
 
 function randFromRange (low, high) {
 
-    var roll = Math.floor(Math.random()*(high-low+1)+low);
+    var roll = Math.floor(Math.random()*(parseInt(high)-parseInt(low)+1)+parseInt(low));
 
     return roll;
 }
@@ -640,7 +696,7 @@ function sleep (milliSeconds) {
 
 function initPlayer(playername) {
 	stats = [100, 1, 0, 0, 0, 0];
-	inventory = ["Sealed rusty pickaxe", "", ""];
+	inventory = ["", "", ""];
 	playerClass = ["","","","",""];
 	mainArray = [stats, inventory,playerClass];
 	if (dict.getVal(playername) == "Key not found!") {
@@ -666,7 +722,7 @@ function classCast(playername, roomClient, mainDict, admg){
     var mainArray = dict.getVal(playername);
     var playerClass = mainArray[2];
     // 1 ability for now
-    if (abilityCheck == 2){
+    if (abilityCheck == 2 || playerClass[0] == "Warrior"){
         var chooseAbility = randFromRange(1,2);
         logToFile("Ability to use: " + chooseAbility.toString());
         switch (playerClass[0]){
@@ -695,7 +751,7 @@ function classCast(playername, roomClient, mainDict, admg){
                     mainArray[0] = stats;
                     logToFile("Magic Missiles added to MA: " + mainArray[0][2].toString());
                     dict.update(playername, mainArray);
-                }else if (chooseAbility ==2){
+                }else if (chooseAbility == 2){
                     var magicHPreduce = randFromRange(1,mainArray[0][4])
                     hp = hp - magicHPreduce;
                     printMessage(playername + " covered the monster in <b>Soy Sauce</b> and reduced the hp by <b>" + magicHPreduce.toString() + "</b>. HP of mob is now " + hp.toString(), "random", roomClient, "html");
@@ -723,7 +779,10 @@ function classCast(playername, roomClient, mainDict, admg){
                     printMessage(playername + " executes <b>Pancakes From Above</b> added <b>"+attackModi.toString()+"</b> to the seasoning modifier.", "random", roomClient, "html");
                 }
                 logToFile("atk dmg before cast: " + attackdmg.toString());
-                attackdmg[0] = (attackdmg[0] * playerClass[3] + mainArray[0][4]*attackModi);
+                attackdmg[0] = (attackdmg[0] * mainArray[0][4]*attackModi);
+                if (attackdmg[0] >= 100){
+                    attackdmg[0] = 100; 
+                }
                 logToFile("Attack dmg is currently: " + attackdmg[0])
                 gainHP = Math.floor(gainHP/playerClass[3]);
                 if (gainHP == 0) gainHP = 1;
@@ -740,7 +799,11 @@ function classCast(playername, roomClient, mainDict, admg){
 }
 
 function postAttackFunc(name){
+    if (!dict.getVal(name)[2][3]){
+        dict.getVal(name)[2][3] == 0;
+    }
     dict.getVal(name)[0][2] = dict.getVal(name)[2][3];
+
 
 }
 function logToFile(message){
@@ -835,8 +898,7 @@ if (!JSdict.prototype.update) {
 // Adds a unique key value pair
 if (!JSdict.prototype.add) {
 	JSdict.prototype.add = function (key, val) {
-		logToFile("Saving dictionary first");
-		saveData(dict);
+
 		// Allow only strings or numbers as keys
 		if (typeof(key) == "number" || typeof(key) == "string") {
 			if (key == null || val == null) {
@@ -854,6 +916,8 @@ if (!JSdict.prototype.add) {
 			}
 			this.Keys.push(key);
 			this.Values.push(val);
+            logToFile("Saving dictionary first");
+            saveData(dict);
 		} else {
 			return "Only number or string can be key!";
 		}
@@ -881,6 +945,8 @@ if (!JSdict.prototype.remove) {
 				break;
 			}
 		}
+        logToFile("Saving dictionary first");
+        saveData(dict);
 		if (!flag) {
 			return "Key does not exist";
 		}

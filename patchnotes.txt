@@ -1,3 +1,15 @@
+3/20/2015
+* players will always win ties
+* warrior skill will always proc
+* gold and exp double when a crit is rolled
+* nerfed the amount of dmg warriors took
+Initial Plan for arena:
+* Starting an arena costs a token, each token is 20g.
+* At least 3 people have to join the arena - only 1 person needs the token
+* When the arena starts, every normal message sent for the next minute will trigger a monster encounter
+* Whoever sent the message that triggered it will fight the monster.
+* Every monster encountered will grow increasing difficult
+
 3/19/2015
 * buffed self renew slightly
 * changed time of random monster enc to 10-5pm, and interval to every 10 min
@@ -5,8 +17,8 @@
  - bread stick - lowers the attack damage of the monster
 * fixed random function not being inclusive
 * add new ability for mages
-* added pepper, rerolls to shop
  - soy sauce - reduces the roll you have to win against the monster
+* added pepper, rerolls to shop
 * reduced the amount of text in /stats all
 
 3/18/2015:
