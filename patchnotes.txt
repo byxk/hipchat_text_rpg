@@ -1,3 +1,7 @@
+3/23/2015
+* Random monster encounter no longer happens on weekends.
+* buffed heals from killing monsters
+
 3/20/2015
 * players will always win ties
 * warrior skill will always proc
