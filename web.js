@@ -1,4 +1,8 @@
 // data: [ARRAY[HP,PEPPERPOINTS,SEASONINGMOD,EXP, LEVEL, GOLD],ARRAY[ITEMS],ARRAY[CLASSNAME, numOfReRolls, target, warrior mod]]
+// data v2: [main: [ hp, pepperpoints, mod, exp, lvl ,gold]
+//           inventory: [items]
+//           classInfo: [name, rerolls, target, classMod] 
+//           ]
 var typesOfMonsters = ["globin", "poring", "Ghostly Josh", "Headless Jimmy", "Spooky Jennie", 
 "Playboy Rob", "Mad Patrick", "Crazy Leo", "Sad Caledonia", 
 "Master Imran", "Giant Josh", "Grapefruit Jimmy", "Fried Rob", "Potato Leo",
@@ -13,6 +17,7 @@ var app = ack(pkg, {store: 'MongoStore'});
 var MongoStore = require('ac-node').MongoStore;
 var addonStore = MongoStore(process.env[app.config.MONGO_ENV], 'dice');
 var Serializer = require("backpack-node").system.Serializer;
+var DiceData = require('./lib/Dice')
 var ser = new Serializer();
 var fs = require('fs');
 var app = ack(pkg);
@@ -54,7 +59,6 @@ var addon = app.addon()
 	.hipchat()
 	.allowRoom(true)
 	.scopes('send_notification');
-
 if (process.env.DEV_KEY) {
 	addon.key(process.env.DEV_KEY);
 }
@@ -67,6 +71,16 @@ function isInArray(value, array) {
   return array.indexOf(value) > -1;
 }
 addon.webhook('room_message', /^\/shop\s*([a-z]+)?\s*([a-z]+)?/i, function  * () {
+    var matchString = this.match;
+    var senderName = this.sender.name
+    var senderMentionName = this.sender.mention_name;
+    var senderId = this.sender.id;
+    if (alreadyattacking) {
+        return;
+    }
+    var getUser = yield this.tenantStore.get(senderId)
+    initPlayer(getUser, this, senderId);
+
     if (shop_process){
         return
     }
@@ -234,9 +248,18 @@ addon.webhook('room_message', /^\/arena\s*([a-z]+)?/i, function  * () {
     
 });
 addon.webhook('room_message', /^[^\/].*|^\/farm/i, function  * () {
+    var matchString = this.match;
+    var senderName = this.sender.name
+    var senderMentionName = this.sender.mention_name;
+    var senderId = this.sender.id;
     if (alreadyattacking) {
         return;
     }
+    var getUser = yield this.tenantStore.get(senderId)
+    initPlayer(getUser, this, senderId);
+
+    var dataBase = yield this.tenantStore.all();
+    logToFile(dataBase);
     if (!globalMonTimer){
         logToFile("In Timer setup");
         globalMonTimer = setInterval(function(roomC, tar) {
@@ -270,29 +293,28 @@ addon.webhook('room_message', /^[^\/].*|^\/farm/i, function  * () {
 
     }
     var trigger = false;
-    if ((this.match[0] == "/farm") && (globalEnc == 21) && (this.sender.mention_name == gTarget.name)){
+    if ((matchString[0] == "/farm") && (globalEnc == 21) && (this.sender.mention_name == gTarget.name)){
         logToFile("In /farm");
         globalEnc = 0;
         trigger = true;
     }
 
-    if (!increaseMonsterChance[this.sender.name] && (this.sender.name != "$")){
-        increaseMonsterChance[this.sender.name] = 1;
+    if (!increaseMonsterChance[senderName] && (senderName != "$")){
+        increaseMonsterChance[senderName] = 1;
     }
-	var doweatk = randFromRange(increaseMonsterChance[this.sender.name], 20);
+	var doweatk = randFromRange(increaseMonsterChance[senderName], 20);
     logToFile("Monster encounter rolls: " + doweatk.toString());
     logToFile("Arena started?: " + arenaStarted.status);
 	if ((parseInt(doweatk) == 17 || trigger || arenaStarted.status == true) && !alreadyattacking) {
 
-		initPlayer(this.sender.name);
 		alreadyattacking = true;
-		underattack = this.sender.name;
-        if (dict.getVal(this.sender.name)[2][0] == "Warrior"){
-            postAttackFunc(this.sender.name);
+		underattack = senderName;
+        if (dict.getVal(senderName)[2][0] == "Warrior"){
+            postAttackFunc(senderName);
         }
 		// lets get player level
         clearTimeout(globalMonClear);
-		var playerLevel = dict.getVal(this.sender.name)[0][4];
+		var playerLevel = dict.getVal(senderName)[0][4];
         if ((playerLevel - 2) <=0) {
             levelofMob = 1
         }else{
@@ -341,9 +363,9 @@ addon.webhook('room_message', /^[^\/].*|^\/farm/i, function  * () {
 				dict.update(name, mainArray);
                 trigger = false
             }
-			}, 60000, this.roomClient, this.sender.name);
+			}, 60000, this.roomClient, senderName);
     }
-    increaseMonsterChance[this.sender.name] = 1;
+    increaseMonsterChance[senderName] = 1;
     trigger = false
 
 	return;
@@ -353,8 +375,17 @@ addon.webhook('room_message', /^\/stats\s*([\S]*)$/i, function  * () {
 	if (stats_process)
 		return;
 	stats_process = true;
-	initPlayer(this.sender.name);
-    if (this.match[1] == "all"){
+    var matchString = this.match;
+    var senderName = this.sender.name
+    var senderMentionName = this.sender.mention_name;
+    var senderId = this.sender.id;
+    if (alreadyattacking) {
+        return;
+    }
+    var getUser = yield this.tenantStore.get(senderId)
+    initPlayer(getUser, this, senderId);
+
+    if (matchString[1] == "all"){
         if (statsAll) {
             stats_process = false;
             return yield printMessage("It's too soon for stats all.", "red", this.roomClient, "text");
@@ -390,11 +421,11 @@ addon.webhook('room_message', /^\/stats\s*([\S]*)$/i, function  * () {
         stats_process = false;
         return;
     }
-	mainArray = dict.getVal(this.sender.name);
+	mainArray = dict.getVal(senderName);
 	stats = mainArray[0];
 	pclass = mainArray[2];
 
-    var tableString = "<table><tr><th>"+this.sender.mention_name + ":</th><th>Class</th><th>HP</th><th>Level</th><th>EXP</th><th>Pepper</th><th>Seasoning</th><th>Gold</th></tr>" +
+    var tableString = "<table><tr><th>"+senderMentionName + ":</th><th>Class</th><th>HP</th><th>Level</th><th>EXP</th><th>Pepper</th><th>Seasoning</th><th>Gold</th></tr>" +
     	"<tr><td></td><td>" +pclass[0]+"</td><td>"+stats[0].toString()+"</td><td>"+stats[4]+"</td><td>"+stats[3]+"</td><td>"+stats[1]+"</td><td>"+stats[2].toString()+"</td><td>"+stats[5].toString()+"</td></tr></table>";
 
     yield printMessage(tableString, "green", this.roomClient, "html");
@@ -411,10 +442,19 @@ addon.webhook('room_message', /^\/inventory/i, function  * () {
 	if (inventory_process)
 		return;
 	inventory_process = true;
-	initPlayer(this.sender.name);
-	mainArray = dict.getVal(this.sender.name);
+    var matchString = this.match;
+    var senderName = this.sender.name
+    var senderMentionName = this.sender.mention_name;
+    var senderId = this.sender.id;
+    if (alreadyattacking) {
+        return;
+    }
+    var getUser = yield this.tenantStore.get(senderId)
+    initPlayer(getUser, this, senderId);
+
+	mainArray = dict.getVal(senderName);
 	inventory = mainArray[1];
-	yield this.roomClient.sendNotification(this.sender.name + "'s inventory: " + inventory.toString());
+	yield this.roomClient.sendNotification(senderName + "'s inventory: " + inventory.toString());
 	inventory_process = false;
 });
 
@@ -423,7 +463,16 @@ addon.webhook('room_message', /^\/pepper|^\/peppa/i, function  * () {
 		return;
 	}
 	prayer_process = true;
-	initPlayer(this.sender.name);
+    var matchString = this.match;
+    var senderName = this.sender.name
+    var senderMentionName = this.sender.mention_name;
+    var senderId = this.sender.id;
+    if (alreadyattacking) {
+        return;
+    }
+    var getUser = yield this.tenantStore.get(senderId)
+    initPlayer(getUser, this, senderId);
+
 	mainArray = dict.getVal(this.sender.name);
 	stats = mainArray[0];
 	if (stats[1] <= 0) {
@@ -439,54 +488,62 @@ addon.webhook('room_message', /^\/pepper|^\/peppa/i, function  * () {
 });
 
 addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9]+))?/i, function  * () {
-	initPlayer(this.sender.name);
-	if (this.sender.name == alreadyrolling)
+    var matchString = this.match;
+    var senderName = this.sender.name
+    var senderMentionName = this.sender.mention_name;
+    var senderId = this.sender.id;
+    if (alreadyattacking) {
+        return;
+    }
+    var getUser = yield this.tenantStore.get(senderId)
+    initPlayer(getUser, this, senderId);
+
+	if (senderName == alreadyrolling)
 		return;
-	alreadyrolling = this.sender.name;
-	var numofvars = this.match;
-	var numofdice = this.match[1];
-	var numofsides = this.match[2];
-	var modifier = this.match[3];
-	if (parseInt(this.match[1]) > 100) {
-        return yield printMessage("@" + this.sender.mention_name + " sucks at foosball", "yellow", this.roomClient, "text")
+	alreadyrolling = senderName;
+	var numofvars = matchString;
+	var numofdice = matchString[1];
+	var numofsides = matchString[2];
+	var modifier = matchString[3];
+	if (parseInt(matchString[1]) > 100) {
+        return yield printMessage("@" + senderMentionName + " sucks at foosball", "yellow", this.roomClient, "text")
 	}
-	if (this.match[1] && this.match[2] && this.match[3]) {
+	if (matchString[1] && matchString[2] && matchString[3]) {
         var diceRoll = rollDice(parseInt(numofdice),parseInt(numofsides), parseInt(modifier));
         logToFile("Mod dice roll" + diceRoll);
-		var totalString = formatRoll(parseInt(numofdice),parseInt(numofsides),parseInt(modifier),diceRoll, this.sender.mention_name);
+		var totalString = formatRoll(parseInt(numofdice),parseInt(numofsides),parseInt(modifier),diceRoll, senderMentionName);
 		var total = diceRoll[0]
         yield printMessage(totalString, "purple", this.roomClient, "text");
 
 
-	} else if (this.match[1] && this.match[2] || !this.match[1] && !this.match[2] && !this.match[3]) {
+	} else if (matchString[1] && matchString[2] || !matchString[1] && !matchString[2] && !matchString[3]) {
 		var totalString = "";
 		var total = 0;
-		if (!this.match[1] && !this.match[2] && !this.match[3]) {
-            if ((underattack == this.sender.name)){
-                classCast(this.sender.name, this.roomClient, dict, attackdmg);
+		if (!matchString[1] && !matchString[2] && !matchString[3]) {
+            if ((underattack == senderName)){
+                classCast(senderName, this.roomClient, dict, attackdmg);
                 logToFile("ATTACK dmg in main thread: " + attackdmg.toString());
             }
-			var mainArray = dict.getVal(this.sender.name);
-			var seasonMod = mainArray[0][2];
+			var seasonMod = getUser.main[2];
 			numofdice = 1;
 			numofsides = 20;
             var diceRoll = rollDice(parseInt(numofdice),parseInt(numofsides), parseInt(seasonMod));
-			totalString = formatRoll(numofdice, numofsides, seasonMod, diceRoll, this.sender.mention_name)
+			totalString = formatRoll(numofdice, numofsides, seasonMod, diceRoll, senderMentionName)
 			total = parseInt(diceRoll[0]);
 		} else {
 
-			numofdice = parseInt(this.match[1]);
-			numofsides = parseInt(this.match[2]);
+			numofdice = parseInt(matchString[1]);
+			numofsides = parseInt(matchString[2]);
 			logToFile("NUMOFDICE: " + numofdice);
 			var diceResult = rollDice(numofdice,numofsides,0);
-			totalString = formatRoll(numofdice, numofsides, 0 , diceResult, this.sender.mention_name)
+			totalString = formatRoll(numofdice, numofsides, 0 , diceResult, senderMentionName)
 			total = diceResult[0];
 
 		}
 		yield printMessage(totalString, "purple", this.roomClient, "text");
 
 
-		if (((this.sender.name == underattack) && (numofdice == 1) && (numofsides == 20 ))) {
+		if (((senderName == underattack) && (numofdice == 1) && (numofsides == 20 ))) {
 			clearTimeout(monsterTimer);
             underattack == "";
             alreadyattacking = false;
@@ -498,17 +555,17 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
                     monsterGoldDrop = monsterGoldDrop * 2;
                 }
 
-				yield this.roomClient.sendNotification("@" + this.sender.mention_name + ' defeated the ' + monsterType + ' and got ' + monsterfoodDrop + ' that restores ' + Math.floor(gainHP) + " hp along with " + amountofExp + " exp and " + monsterGoldDrop.toString() + " gold!", {
+				yield this.roomClient.sendNotification("@" + senderMentionName + ' defeated the ' + monsterType + ' and got ' + monsterfoodDrop + ' that restores ' + Math.floor(gainHP) + " hp along with " + amountofExp + " exp and " + monsterGoldDrop.toString() + " gold!", {
 					color : 'purple',
 					format : 'text'
 				});
-				stats = dict.getVal(this.sender.name)[0];
+				stats = getUser.main;
 				stats[3] = stats[3] + amountofExp;
                 stats[5] = parseInt(stats[5]) + parseInt(monsterGoldDrop);
                 var currentLevel = stats[4];
 				stats[4] = Math.floor(stats[3] / 20);
                 if (currentLevel < stats[4]){
-                    yield printMessage("@" + this.sender.mention_name + " has leveled up and is now level " + stats[4].toString() + ".", "yellow", this.roomClient, "text");
+                    yield printMessage("@" + senderMentionName + " has leveled up and is now level " + stats[4].toString() + ".", "yellow", this.roomClient, "text");
                 }
 				amountofExp = 0;
                 monsterGoldDrop = 0;
@@ -517,56 +574,54 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 				stats[0] = parseInt(stats[0]) + Math.floor(gainHP);
 				if (chanceOfFaith) {
 					chanceOfFaith = false;
-					yield this.roomClient.sendNotification('The monster dropped some pepper! @' + this.sender.mention_name + ' gained 1 pepper.', {
+					yield this.roomClient.sendNotification('The monster dropped some pepper! @' + senderMentionName + ' gained 1 pepper.', {
 						color : 'purple',
 						format : 'text'
 					});
 					stats[1] = stats[1] + 1;
 				}
-				mainArray = dict.getVal(this.sender.name);
-				mainArray[0] = stats;
-				dict.update(this.sender.name, mainArray);
-				logToFile("MAIN ARRAY: " + mainArray.toString());
+				mainArray = dict.getVal(senderName);
+				getUser.main = stats;
+                updatePlayer(getUser,this, senderId);
 				alreadyattacking = false;
                 trigger = false;
                 underattack = "";
 			} else {
-				yield this.roomClient.sendNotification("@" + this.sender.mention_name + ' lost ' + attackdmg[0] + ' hp!', {
+				yield this.roomClient.sendNotification("@" + senderMentionName + ' lost ' + attackdmg[0] + ' hp!', {
 					color : 'purple',
 					format : 'text'
 				});
-				stats = dict.getVal(this.sender.name)[0];
+				stats = getUser.main;
 				stats[2] = 0;
 				stats[0] = parseInt(stats[0]) - parseInt(attackdmg[0]);
-                mainArray[2][3] = 0;
+                getUser.classInfo[3] = 0;
                 logToFile("Current hp after loss: " + stats[0]);
 				if (parseInt(stats[0]) <= 0){
+                    // TODO : CHANGE AND UPDATE
                     logToFile("Dead player");
-					yield this.roomClient.sendNotification("@" + this.sender.mention_name + ' has died.', {
+					yield this.roomClient.sendNotification("@" + senderMentionName + ' has died.', {
 					color : 'red',
 					format : 'text'
 					});
-					dict.remove(this.sender.name);
+					dict.remove(senderName);
                     saveData(dict);
-					initPlayer(this.sender.name);
+					initPlayer(senderName);
 				}else{
-
-					mainArray = dict.getVal(this.sender.name);
-					mainArray[0] = stats;
-					dict.update(this.sender.name, mainArray);
+					getUser.main = stats;
+                    updatePlayer(getUser, this, senderId);
 				}
 				underattack = ""
                 trigger = false;
 				alreadyattacking = false;
 			}
-            postAttackFunc(this.sender.name);
+            postAttackFunc(senderName);
 
 
 
 		}
-	} else if (this.match[1]) {
+	} else if (matchString[1]) {
 
-		yield this.roomClient.sendNotification("@" + this.sender.mention_name + ' rolled a dice with ' + this.match[1] + ' sides ...... [' + (Math.floor(Math.random() * parseInt(this.match[1])) + 1) + ']', {
+		yield this.roomClient.sendNotification("@" + senderMentionName + ' rolled a dice with ' + matchString[1] + ' sides ...... [' + (Math.floor(Math.random() * parseInt(matchString[1])) + 1) + ']', {
 			color : 'purple',
 			format : 'text'
 		});
@@ -704,17 +759,31 @@ function sleep (milliSeconds) {
 	while (new Date().getTime() < startTime + milliSeconds); // hog cpu
 }
 
-function initPlayer(playername) {
-	stats = [100, 1, 0, 0, 0, 0];
-	inventory = ["", "", ""];
-	playerClass = ["","","","",""];
-	mainArray = [stats, inventory,playerClass];
-	if (dict.getVal(playername) == "Key not found!") {
-		logToFile("Creating Player: " + playername);
-		dict.add(playername, mainArray);
-	}
+// data v2: [main: [ hp, pepperpoints, mod, exp, lvl ,gold]
+//           inventory: [items]
+//           classInfo: [name, rerolls, target, classMod] 
+//           ]
+function initPlayer(playername, self, id) {
+    var self = self;
+    if (playername){
+    logToFile("USER DOES EXIT: " + playername.main[2])
+     return;
+    }
+    logToFile("CREATING USER: " + id);
+    var playerObject = {
+        main: [100,1,0,0,0,0,0],
+        inventory: [],
+        classInfo: ["",1,"",0,"",""]
+    }
+    self.tenantStore.set(id, playerObject);
+    return;
 }
 
+function updatePlayer(playerObject, self, id){
+    var self = self;
+    self.tenantStore.set(id, playerObject);
+    return logToFile("Saved PlayerObject for: " + id);
+}
 function checkPlayer(playername){
 	mainArray = dict.getVal(playername);
 	if (mainArray.length == 2){
