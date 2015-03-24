@@ -1,7 +1,8 @@
 // data: [ARRAY[HP,PEPPERPOINTS,SEASONINGMOD,EXP, LEVEL, GOLD],ARRAY[ITEMS],ARRAY[CLASSNAME, numOfReRolls, target, warrior mod]]
-// data v2: [main: [ hp, pepperpoints, mod, exp, lvl ,gold]
+// data v2: [main: [hp, pepperpoints, mod, exp, lvl ,gold]
 //           inventory: [items]
 //           classInfo: [name, rerolls, target, classMod] 
+//           profile: [playerName, "", "","","",""]
 //           ]
 var typesOfMonsters = ["globin", "poring", "Ghostly Josh", "Headless Jimmy", "Spooky Jennie", 
 "Playboy Rob", "Mad Patrick", "Crazy Leo", "Sad Caledonia", 
@@ -79,7 +80,7 @@ addon.webhook('room_message', /^\/shop\s*([a-z]+)?\s*([a-z]+)?/i, function  * ()
         return;
     }
     var getUser = yield this.tenantStore.get(senderId)
-    initPlayer(getUser, this, senderId);
+    initPlayer(getUser, this, senderId, senderName);
 
     if (shop_process){
         return
@@ -256,7 +257,7 @@ addon.webhook('room_message', /^[^\/].*|^\/farm/i, function  * () {
         return;
     }
     var getUser = yield this.tenantStore.get(senderId)
-    initPlayer(getUser, this, senderId);
+    initPlayer(getUser, this, senderId, senderName);
 
     var dataBase = yield this.tenantStore.all();
     logToFile(dataBase);
@@ -383,11 +384,11 @@ addon.webhook('room_message', /^\/stats\s*([\S]*)$/i, function  * () {
         return;
     }
     var getUser = yield this.tenantStore.get(senderId)
-    initPlayer(getUser, this, senderId);
+    initPlayer(getUser, this, senderId, senderName);
 
     // TODO: FIX AND UPDATE
     if (matchString[1] == "all"){
-        return
+        var allUsers = yield this.tenantStore.all();
         if (statsAll) {
             stats_process = false;
             return yield printMessage("It's too soon for stats all.", "red", this.roomClient, "text");
@@ -395,24 +396,22 @@ addon.webhook('room_message', /^\/stats\s*([\S]*)$/i, function  * () {
     
         statsAll = true;
         var printString = "";
-        for (var i in dict.Keys){
-            try{
+        for (var i in allUsers){
+  
       
-            var personName = dict.Keys[i];
-
+            var personName = i;
+            if (personName.length != 7) continue;
             logToFile("Looping thru " + personName);
-            var tempPlayerArray = dict.getVal(personName);
-            var tempPlayerStats = tempPlayerArray[0];
-            var tempPlayerClass = tempPlayerArray[2];
+            var tempPlayerArray = yield this.tenantStore.get(personName);
+            var tempPlayerStats = tempPlayerArray.main;
+            var tempPlayerClass = tempPlayerArray.classInfo
 
             yield printMessage(personName + "'s stats | " 
                 + tempPlayerClass[0] + " | hp: " 
                 + tempPlayerStats[0].toString() + " | Level: " 
                 + tempPlayerStats[4] + " | EXP: " + tempPlayerStats[3] 
                 + " | pepper: " + tempPlayerStats[1].toString(), "yellow", this.roomClient, "text");
-            }catch(err){
-                logToFile(err);
-            }
+
 
         }
             statsTimer = setTimeout(function (room) {
@@ -451,7 +450,7 @@ addon.webhook('room_message', /^\/inventory/i, function  * () {
         return;
     }
     var getUser = yield this.tenantStore.get(senderId)
-    initPlayer(getUser, this, senderId);
+    initPlayer(getUser, this, senderId, senderName);
 
 	mainArray = dict.getVal(senderName);
 	inventory = mainArray[1];
@@ -472,7 +471,7 @@ addon.webhook('room_message', /^\/pepper|^\/peppa/i, function  * () {
         return;
     }
     var getUser = yield this.tenantStore.get(senderId)
-    initPlayer(getUser, this, senderId);
+    initPlayer(getUser, this, senderId, senderName);
 
 	mainArray = dict.getVal(this.sender.name);
 	stats = mainArray[0];
@@ -497,7 +496,7 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
         return;
     }
     var getUser = yield this.tenantStore.get(senderId)
-    initPlayer(getUser, this, senderId);
+    initPlayer(getUser, this, senderId, senderName);
 
 	if (senderName == alreadyrolling)
 		return;
@@ -763,8 +762,9 @@ function sleep (milliSeconds) {
 // data v2: [main: [ hp, pepperpoints, mod, exp, lvl ,gold]
 //           inventory: [items]
 //           classInfo: [name, rerolls, target, classMod] 
+//           profile: [playerName, "", "","","",""]
 //           ]
-function initPlayer(playername, self, id) {
+function initPlayer(playername, self, id, name) {
     var self = self;
     if (playername){
     logToFile("USER DOES EXIT: " + playername.main[2])
@@ -774,7 +774,9 @@ function initPlayer(playername, self, id) {
     var playerObject = {
         main: [100,1,0,0,0,0,0],
         inventory: [],
-        classInfo: ["",1,"",0,"",""]
+        classInfo: ["",1,"",0,"",""],
+        profile: [name, "", "","","",""]
+
     }
     self.tenantStore.set(id, playerObject);
     return;
