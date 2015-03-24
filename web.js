@@ -385,7 +385,9 @@ addon.webhook('room_message', /^\/stats\s*([\S]*)$/i, function  * () {
     var getUser = yield this.tenantStore.get(senderId)
     initPlayer(getUser, this, senderId);
 
+    // TODO: FIX AND UPDATE
     if (matchString[1] == "all"){
+        return
         if (statsAll) {
             stats_process = false;
             return yield printMessage("It's too soon for stats all.", "red", this.roomClient, "text");
@@ -421,9 +423,9 @@ addon.webhook('room_message', /^\/stats\s*([\S]*)$/i, function  * () {
         stats_process = false;
         return;
     }
-	mainArray = dict.getVal(senderName);
-	stats = mainArray[0];
-	pclass = mainArray[2];
+
+	stats = getUser.main;
+	pclass = getUser.classInfo;
 
     var tableString = "<table><tr><th>"+senderMentionName + ":</th><th>Class</th><th>HP</th><th>Level</th><th>EXP</th><th>Pepper</th><th>Seasoning</th><th>Gold</th></tr>" +
     	"<tr><td></td><td>" +pclass[0]+"</td><td>"+stats[0].toString()+"</td><td>"+stats[4]+"</td><td>"+stats[3]+"</td><td>"+stats[1]+"</td><td>"+stats[2].toString()+"</td><td>"+stats[5].toString()+"</td></tr></table>";
@@ -435,7 +437,6 @@ addon.webhook('room_message', /^\/stats\s*([\S]*)$/i, function  * () {
 // 	//	color : 'green',
 // 	//	format : 'text'
 // 	//});
- 	stats_process = false;
 });
 
 addon.webhook('room_message', /^\/inventory/i, function  * () {
