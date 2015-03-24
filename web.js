@@ -9,6 +9,9 @@ var mainShop = ["HealthPotion"]
 var monsterLevelDice = [20,30,40,50,60];
 var ack = require('ac-koa').require('hipchat');
 var pkg = require('./package.json');
+var app = ack(pkg, {store: 'MongoStore'});
+var MongoStore = require('ac-node').MongoStore;
+var addonStore = MongoStore(process.env[app.config.MONGO_ENV], 'dice');
 var Serializer = require("backpack-node").system.Serializer;
 var ser = new Serializer();
 var fs = require('fs');
@@ -35,7 +38,7 @@ var gainHP;
 var increaseMonsterChance = new Array();
 var gMonsterChance = new Array();
 var diceToRoll = 0;
-var arenaStarted = new Object(false);
+var arenaStarted = {status: false}
 var levelofMob = 1;
 var prayer_process = false;
 var inventory_process = false;
@@ -43,7 +46,7 @@ var stats_process = false;
 var globalMonTimer;
 var globalMonClear;
 var monsterGoldDrop;
-var gTarget = Object("");
+var gTarget = {name:""};
 var peopleInRoom;
 var globalRoom;
 var shop_process;
@@ -151,7 +154,7 @@ addon.webhook('room_message', /^\/target\s*([\S\s]*)$/i, function  * () {
     if (!this.match[1]){ 
         return yield printMessage("@" +this.sender.mention_name + " is currently targeting + " + pclass[2] + ".", "green", this.roomClient, "text") 
     }
-    if (className != "Cleric"){
+    if (pclass[0] != "Cleric"){
         return yield printMessage("Must be a {Cleric} to use this feature.", "red", this.roomClient, "text")
     }
     logToFile("Attempting to target " + this.match[1]);
@@ -170,7 +173,9 @@ addon.webhook('room_message', /^\/class\s*([a-z]+)?/i, function  * () {
 		mainArray = dict.getVal(this.sender.name);
 		pclass = mainArray[2];
 
-		if (parseInt(pclass[1]) <= 0) return printMessage(this.sender.name +"'s class has been chosen already. You cannot change destiny.", "red", this.roomClient);
+		if (parseInt(pclass[1]) <= 0){
+            return printMessage(this.sender.name +"'s class has been chosen already. You cannot change destiny.", "red", this.roomClient);
+        } 
         pclass[1] -= 1;
 		chosenClass = classTypes[Math.floor(Math.random() * classTypes.length)];
 		printMessage(this.sender.name + "'s rolls the destiny dice and is chosen as a......<b>" + chosenClass + "</b>!!!!", "green", this.roomClient);
@@ -196,7 +201,6 @@ addon.webhook('room_message', /^\/class\s*([a-z]+)?/i, function  * () {
 
 });
 addon.webhook('room_message', /^\/arena\s*([a-z]+)?/i, function  * () {
-    return;
     var mainArray = dict.getVal(this.sender.name);
     var playerInventory = mainArray[1];
     if (this.match[1] == "join" && arenaStartLobby && !isInArray(this.sender.name, arenaPlayers)){
@@ -207,13 +211,14 @@ addon.webhook('room_message', /^\/arena\s*([a-z]+)?/i, function  * () {
             arenaPlayers = new Array();
             arenaStartLobby = false;
             yield printMessage("Enough players have joined! Starting arena. For the next minute, all message will trigger monster encounters!", "yellow", this.roomClient, "text");
-            arenaStarted.$(true);
+            arenaStarted.status = true;
             logToFile("Starting arena");
             var arenaTimer = setTimeout(function (start, room) {
                     logToFile("ending arena");
-                    arenaStarted.$(false);
+                    arenaStarted.status = false;
                     printMessage("Arena has ended.", "green", room, "text");
-                }, 10000, arenaStarted, this.roomClient)
+                    clearTimeout(monsterTimer)
+                }, 20000, arenaStarted, this.roomClient)
 
         }
     }else if (isInArray("arenatoken", playerInventory) && !arenaStartLobby){
@@ -229,41 +234,43 @@ addon.webhook('room_message', /^\/arena\s*([a-z]+)?/i, function  * () {
     
 });
 addon.webhook('room_message', /^[^\/].*|^\/farm/i, function  * () {
+    if (alreadyattacking) {
+        return;
+    }
     if (!globalMonTimer){
         logToFile("In Timer setup");
         globalMonTimer = setInterval(function(roomC, tar) {
             var today = new Date().getHours();
+            var day = new Date().getDay();
             logToFile("Current hour: " + today);
             // time on vm
-            if (today <= 24 && today >= 17 && !alreadyattacking) {
+            if (today <= 24 && today >= 17 && !alreadyattacking && (day != 0) && (day != 7) && (underattack == "") && (arenaStarted.status == false)) {
 
                 var rand = Math.floor(Math.random() * gMonsterChance.length)
                 logToFile("Rand is currently: " + rand.toString());
                 logToFile("ArraySze is currently: " + gMonsterChance.length.toString());
-                tar.$(gMonsterChance[rand]);
+                gTarget.name = gMonsterChance[rand];
                 //tar.$("Patrick");
-                if (tar != "undefined")
-                logToFile("Target is currently: " + tar);
-                printMessage("@"+tar + " hears something rustle in the tall grass...poke ball ready...", "purple", roomC, "text");
-                globalEnc = 21;
-                gMonsterChance.splice(rand, 1);
-                globalMonClear = setTimeout(function (tar) {
-                    logToFile("grass timed out");
-                    tar.$("");
-                    if (gMonsterChance.length == 0){
-                    fillMonsterChanceArray();
-                    logToFile("Monster array is currently: " + gMonsterChance);
-                    }
-                }, 30000, gTarget);
+                if (gTarget.name != "undefined"){
+                    logToFile("Target is currently: " + gTarget.name);
+                    printMessage("@"+gTarget.name + " hears something rustle in the tall grass...poke ball ready...", "purple", roomC, "text");
+                    globalEnc = 21;
+                    gMonsterChance.splice(rand, 1);
+                    globalMonClear = setTimeout(function (tar) {
+                        logToFile("grass timed out");
+                        gTarget.name = "";
+                        if (gMonsterChance.length == 0){
+                        fillMonsterChanceArray();
+                        logToFile("Monster array is currently: " + gMonsterChance);
+                        }
+                    }, 30000, gTarget);
+                }
             }
         }, 600000, this.roomClient, gTarget)
 
     }
-	if (alreadyattacking) {
-		return;
-	}
     var trigger = false;
-    if ((this.match[0] == "/farm") && (globalEnc == 21) && (this.sender.mention_name == gTarget)){
+    if ((this.match[0] == "/farm") && (globalEnc == 21) && (this.sender.mention_name == gTarget.name)){
         logToFile("In /farm");
         globalEnc = 0;
         trigger = true;
@@ -274,8 +281,8 @@ addon.webhook('room_message', /^[^\/].*|^\/farm/i, function  * () {
     }
 	var doweatk = randFromRange(increaseMonsterChance[this.sender.name], 20);
     logToFile("Monster encounter rolls: " + doweatk.toString());
-    logToFile("Arena started?: " + arenaStarted.toString());
-	if (parseInt(doweatk) == 17 || trigger || arenaStarted == true) {
+    logToFile("Arena started?: " + arenaStarted.status);
+	if ((parseInt(doweatk) == 17 || trigger || arenaStarted.status == true) && !alreadyattacking) {
 
 		initPlayer(this.sender.name);
 		alreadyattacking = true;
@@ -302,7 +309,7 @@ addon.webhook('room_message', /^[^\/].*|^\/farm/i, function  * () {
         logToFile("HP of monster :" + hp);
         logToFile("Level of monster: " + levelofMob);
 
-        gainHP = Math.ceil(hp/playerLevel);
+        gainHP = hp;
         if (gainHP == "Infinity"){
             gainHP = 1;
         }
@@ -319,9 +326,10 @@ addon.webhook('room_message', /^[^\/].*|^\/farm/i, function  * () {
             + levelofMob.toString()
             + " " + monsterType + " is going after you! Roll a 1d20 and defeat it. You must beat a " + hp +". Rolling for attack damage...","red", this.roomClient,"text");
         logToFile("Attack Damage in first enc: " + attackdmg.toString())
-        yield printMessage(formatRoll(Math.ceil(levelofMob/2), 8, parseInt(levelofMob), attackdmg, monsterType), "red", this.roomClient, "html");
+        yield printMessage(formatRoll(Math.ceil(levelofMob/2), 8, 0, attackdmg, monsterType), "red", this.roomClient, "html");
 		logToFile("Starting to wait for player " + underattack);
 		monsterTimer = setTimeout(function (room, name) {
+            if (underattack != ""){
 				logToFile("Monster timed out");
 				room.sendNotification(underattack + " took too long to fight back, and nearly died to the monster. "+ attackdmg[0]+ "hp lost.");
 				underattack = "";
@@ -332,6 +340,7 @@ addon.webhook('room_message', /^[^\/].*|^\/farm/i, function  * () {
 				mainArray[0] = stats;
 				dict.update(name, mainArray);
                 trigger = false
+            }
 			}, 60000, this.roomClient, this.sender.name);
     }
     increaseMonsterChance[this.sender.name] = 1;
@@ -538,6 +547,7 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 					format : 'text'
 					});
 					dict.remove(this.sender.name);
+                    saveData(dict);
 					initPlayer(this.sender.name);
 				}else{
 
@@ -727,7 +737,7 @@ function classCast(playername, roomClient, mainDict, admg){
         logToFile("Ability to use: " + chooseAbility.toString());
         switch (playerClass[0]){
             case "Cleric":
-                var healPower = randFromRange(mainArray[0][4],mainArray[0][4]*2);
+                var healPower = parseInt(rollDice(parseInt(mainArray[0][4]),6,0)[0]);
                 var target = playerClass[2];
                 if (target == ""){
                     printMessage(playername + " casted <b>Self Renew</b> and was healed for <b>" + healPower.toString() + "</b>!", "random", roomClient, "html");
@@ -779,7 +789,7 @@ function classCast(playername, roomClient, mainDict, admg){
                     printMessage(playername + " executes <b>Pancakes From Above</b> added <b>"+attackModi.toString()+"</b> to the seasoning modifier.", "random", roomClient, "html");
                 }
                 logToFile("atk dmg before cast: " + attackdmg.toString());
-                attackdmg[0] = (attackdmg[0] * mainArray[0][4]*attackModi);
+                attackdmg[0] = (attackdmg[0] * mainArray[0][4]);
                 if (attackdmg[0] >= 100){
                     attackdmg[0] = 100; 
                 }
