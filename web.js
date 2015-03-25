@@ -28,7 +28,6 @@ var alreadyattacking = false;
 var underattack = "";
 var alreadyrolling = "";
 var hp = 0;
-var dict = new JSdict();
 var attackdmg;
 var chanceOfFaith = false;
 var amountofExp = false;
@@ -72,6 +71,9 @@ function isInArray(value, array) {
   return array.indexOf(value) > -1;
 }
 addon.webhook('room_message', /^\/shop\s*([a-z]+)?\s*([a-z]+)?/i, function  * () {
+    if (shop_process){
+        return
+    }
     var matchString = this.match;
     var senderName = this.sender.name
     var senderMentionName = this.sender.mention_name;
@@ -79,9 +81,6 @@ addon.webhook('room_message', /^\/shop\s*([a-z]+)?\s*([a-z]+)?/i, function  * ()
     var getUser = yield this.tenantStore.get(senderId)
     initPlayer(getUser, this, senderId, senderName);
 
-    if (shop_process){
-        return
-    }
     shop_process = true;
     if (matchString[1] != "buy" || !matchString[2] ){
         printMessage("Buy and use an item automatically with /shop buy itemname.", "green", this.roomClient);
@@ -167,7 +166,6 @@ addon.webhook('room_message', /^\/target\s*([\S\s]*)$/i, function  * () {
 
     var pclass = getUser.classInfo;
     var target = matchString[1];
-    logToFile(dict.Keys.length);
     if (!matchString[1]){ 
         return yield printMessage("@" +senderMentionName + " is currently targeting + " + pclass[2] + ".", "green", this.roomClient, "text") 
     }
@@ -175,7 +173,7 @@ addon.webhook('room_message', /^\/target\s*([\S\s]*)$/i, function  * () {
         return yield printMessage("Must be a {Cleric} to use this feature.", "red", this.roomClient, "text")
     }
     logToFile("Attempting to target " + matchString[1]);
-    if (dict.getVal(matchString[1]) == "Key not found!"){
+    if (getIdFromName(this, matchString[1]) == -1){
         return yield printMessage(matchString[1] + " could not be found!", "green", this.roomClient);
     }
     yield printMessage("@" + senderMentionName + " targeted " + matchString[1] + ".", "green", this.roomClient, "text")
@@ -309,12 +307,12 @@ addon.webhook('room_message', /^[^\/].*|^\/farm/i, function  * () {
 
 		alreadyattacking = true;
 		underattack = senderName;
-        if (dict.getVal(senderName)[2][0] == "Warrior"){
-            postAttackFunc(senderName);
+        if (getUser.classInfo[0] == "Warrior"){
+            postAttackFunc(getUser, this, senderId);
         }
 		// lets get player level
         clearTimeout(globalMonClear);
-		var playerLevel = dict.getVal(senderName)[0][4];
+		var playerLevel = getUser.main[4];
         if ((playerLevel - 2) <=0) {
             levelofMob = 1
         }else{
@@ -468,10 +466,14 @@ addon.webhook('room_message', /^\/pepper|^\/peppa/i, function  * () {
 		yield this.roomClient.sendNotification(senderName + " does not have enough pepper to season.");
 	} else {
 		var prayermod = (Math.floor(Math.random() * 5));
-		stats[1] = stats[1] - 1
-			stats[2] = parseInt(stats[2] + prayermod);
+		stats[1] = stats[1] - 1;
+		stats[2] = parseInt(stats[2] + prayermod);
+        getUser.main = stats;
+        updatePlayer(getUser, this, senderId);
 		yield this.roomClient.sendNotification(senderName + " successfully seasoned for +" + prayermod.toString() + " modifier on next roll.");
+
 	}
+
 	prayer_process = false;
 
 });
@@ -481,9 +483,6 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
     var senderName = this.sender.name
     var senderMentionName = this.sender.mention_name;
     var senderId = this.sender.id;
-    if (alreadyattacking) {
-        return;
-    }
     var getUser = yield this.tenantStore.get(senderId)
     initPlayer(getUser, this, senderId, senderName);
 
@@ -510,7 +509,7 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 		var total = 0;
 		if (!matchString[1] && !matchString[2] && !matchString[3]) {
             if ((underattack == senderName)){
-                classCast(senderName, this.roomClient, dict, attackdmg);
+                classCast(senderName, this.roomClient, getUser, senderId, this);
                 logToFile("ATTACK dmg in main thread: " + attackdmg.toString());
             }
 			var seasonMod = getUser.main[2];
@@ -569,7 +568,6 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 					});
 					stats[1] = stats[1] + 1;
 				}
-				mainArray = dict.getVal(senderName);
 				getUser.main = stats;
                 updatePlayer(getUser,this, senderId);
 				alreadyattacking = false;
@@ -583,18 +581,16 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 				stats = getUser.main;
 				stats[2] = 0;
 				stats[0] = parseInt(stats[0]) - parseInt(attackdmg[0]);
+                // reset class stacks
                 getUser.classInfo[3] = 0;
                 logToFile("Current hp after loss: " + stats[0]);
 				if (parseInt(stats[0]) <= 0){
-                    // TODO : CHANGE AND UPDATE
                     logToFile("Dead player");
 					yield this.roomClient.sendNotification("@" + senderMentionName + ' has died.', {
-					color : 'red',
-					format : 'text'
+					   color : 'red',
+					   format : 'text'
 					});
-					dict.remove(senderName);
-                    saveData(dict);
-					initPlayer(senderName);
+					delPlayer(this, senderId);
 				}else{
 					getUser.main = stats;
                     updatePlayer(getUser, this, senderId);
@@ -603,7 +599,6 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
                 trigger = false;
 				alreadyattacking = false;
 			}
-            postAttackFunc(senderName);
 
 
 
@@ -781,54 +776,59 @@ function delPlayer(self, id){
     self.tenantStore.del(id);
     return logToFile("Deleted PlayerObject for: " + id);
 }
-function checkPlayer(playername){
-	mainArray = dict.getVal(playername);
-	if (mainArray.length == 2){
-		logToFile("Updating Player");
-		// playerData not up to v2
-		playerClass = ["","","","","","","",""];
-		mainArray.push(playerClass);
-	}
+function getIdFromName(self, name){
+    var allUsers = self.tenantStore.all();
+    for (var i in getUsers){
+        var profile = self.tenantStore.get(i).profile;
+        logToFile("Getting name from " + i);
+        if (profile[0] == name){
+            return i;
+        }
+
+    }
+    return -1
 }
 
-function classCast(playername, roomClient, mainDict, admg){
+function classCast(playername, roomClient, playerObject, id, self){
+    var self = self;
+    var senderId = id;
     var abilityCheck = randFromRange(1,2);
-
     logToFile("Ability Check: " + abilityCheck.toString());
-    var mainArray = dict.getVal(playername);
-    var playerClass = mainArray[2];
+    var getUser = playerObject;
+    var playerClass = getUser.classInfo;
     // 1 ability for now
     if (abilityCheck == 2 || playerClass[0] == "Warrior"){
         var chooseAbility = randFromRange(1,2);
         logToFile("Ability to use: " + chooseAbility.toString());
         switch (playerClass[0]){
             case "Cleric":
-                var healPower = parseInt(rollDice(parseInt(mainArray[0][4]),6,0)[0]);
+                var healPower = parseInt(rollDice(parseInt(getUser.main[4]),6,0)[0]);
                 var target = playerClass[2];
                 if (target == ""){
                     printMessage(playername + " casted <b>Self Renew</b> and was healed for <b>" + healPower.toString() + "</b>!", "random", roomClient, "html");
                 }else {
                     printMessage(playername + " casted <b>Self Renew</b> on " + target + " and healed for <b>" + healPower.toString() + "</b>!", "random", roomClient, "html");
                 }
-                var targetMainArray = dict.getVal(target);
+                var targetId = getIdFromName(self, target);
+                var targetMainArray = self.tenantStore.get(targetId).main;
                 logToFile("targerray: " + targetMainArray.toString());
                 var targetStats = targetMainArray[0];
                 targetStats[0] = parseInt(targetStats[0]) + healPower;
-                targetMainArray[0] = targetStats;
-                dict.update(target, targetMainArray);
+                targetMainArray.main = targetStats;
+                updatePlayer(targetMainArray, self, targetId)
                 break;
             case "Mage":
                 if (chooseAbility == 1){
-                    var magicPower = randFromRange(3, mainArray[0][4]*2);
+                    var magicPower = randFromRange(3, getUser.main[4]*2);
                     printMessage(playername + " peppered <b>magic missiles</b> and added <b>" + magicPower.toString() + "</b> to seasoning modifier.", "random", roomClient, "html");
-                    var stats = mainArray[0];
+                    var stats = getUser.main;
                     stats[2] = parseInt(stats[2]) + parseInt(magicPower);
                     logToFile("Magic Missiles added: " + stats.toString());
-                    mainArray[0] = stats;
+                    getUser.main = stats;
+                    updatePlayer(getUser, self, senderId);
                     logToFile("Magic Missiles added to MA: " + mainArray[0][2].toString());
-                    dict.update(playername, mainArray);
                 }else if (chooseAbility == 2){
-                    var magicHPreduce = randFromRange(1,mainArray[0][4])
+                    var magicHPreduce = randFromRange(1,getUser.main[4])
                     hp = hp - magicHPreduce;
                     printMessage(playername + " covered the monster in <b>Soy Sauce</b> and reduced the hp by <b>" + magicHPreduce.toString() + "</b>. HP of mob is now " + hp.toString(), "random", roomClient, "html");
 
@@ -836,10 +836,10 @@ function classCast(playername, roomClient, mainDict, admg){
                 break;
             case "Princess":
                 if (chooseAbility ==1){
-                    var princessPower = randFromRange(0, parseInt(mainArray[0][4])/2);
+                    var princessPower = randFromRange(0, parseInt(getUser.main[4])/2);
                     printMessage(playername + " waves around the magical <b>cinnamon stick</b> and produced <b>" + princessPower.toString() + " peppers </b>.", "random", roomClient, "html");
-                    mainArray[0][1] += princessPower;
-                    dict.update(playername, mainArray);
+                    getUser.main[1] += princessPower;
+                    updatePlayer(getUser, self, senderId)
                 }else if(chooseAbility==2){
                     logToFile("bread stick attackdmg: " + attackdmg[0]);
                     var reduceAttackDmg = randFromRange(0, attackdmg[0]);
@@ -848,22 +848,22 @@ function classCast(playername, roomClient, mainDict, admg){
                 }
                 break;
             case "Warrior":
-                var attackModi = randFromRange(1, mainArray[0][4]);
+                var attackModi = randFromRange(1, getUser.main[4]);
                 if (playerClass[3] == "") playerClass[3] = 0;
                 if ((playerClass[3] + attackModi) <= 10) {
                     playerClass[3] += attackModi;
                     printMessage(playername + " executes <b>Pancakes From Above</b> added <b>"+attackModi.toString()+"</b> to the seasoning modifier.", "random", roomClient, "html");
                 }
                 logToFile("atk dmg before cast: " + attackdmg.toString());
-                attackdmg[0] = (attackdmg[0] * mainArray[0][4]);
+                attackdmg[0] = (attackdmg[0] * getUser.main[4]);
                 if (attackdmg[0] >= 100){
                     attackdmg[0] = 100; 
                 }
                 logToFile("Attack dmg is currently: " + attackdmg[0])
                 gainHP = Math.floor(gainHP/playerClass[3]);
                 if (gainHP == 0) gainHP = 1;
-                mainArray[2] = playerClass;
-                dict.update(playername, mainArray);
+                getUser.classInfo = playerClass;
+                updatePlayer(getUser, self, senderId);
                 break;
             default:
                 return true;
@@ -874,11 +874,14 @@ function classCast(playername, roomClient, mainDict, admg){
 	return true;
 }
 
-function postAttackFunc(name){
-    if (!dict.getVal(name)[2][3]){
-        dict.getVal(name)[2][3] == 0;
+function postAttackFunc(playerObj, self, id){
+    var self = self;
+    var getUser = playerObj;
+    if (!getUser.classInfo[3]){
+        getUser.classInfo[3] == 0;
     }
-    dict.getVal(name)[0][2] = dict.getVal(name)[2][3];
+    getUser.main[2] = getUser.classInfo[3];
+    updatePlayer(getUser, self, id)
 
 
 }
@@ -889,147 +892,8 @@ function sendRoomMessage(message, room){
 	return room.sendNotification(message);
 }
 
-function saveData(file) {
-	ser.registerKnownType("JSDICT", JSdict);
-	var data = ser.stringify({
-			dict : dict
-		});
-	fs.writeFile("data", data, function (err) {
-		if (err) {
-			logToFile(err);
-		} else {
-			logToFile("The file was saved!");
-		}
-	});
-}
 
-// PERSISTENCE
-// ===========
 
-function loadData() {
-	try {
-		ser.registerKnownType("JSDICT", JSdict);
-		var load = fs.readFileSync("data", 'utf8');
-		var deserialized = ser.parse(load);
-		dict = deserialized.dict;
-	}
-	catch(err) {
-		logToFile(err);
-	}
-
-}
-function JSdict() {
-	this.Keys = [];
-	this.Values = [];
-}
-
-// Check if dictionary extensions aren't implemented yet.
-// Returns value of a key
-if (!JSdict.prototype.getVal) {
-	JSdict.prototype.getVal = function (key) {
-		if (key == null) {
-			return "Key cannot be null";
-		}
-		for (var i = 0; i < this.Keys.length; i++) {
-			if (this.Keys[i] == key) {
-				return this.Values[i];
-			}
-		}
-		return "Key not found!";
-	}
-}
-
-// Check if dictionary extensions aren't implemented yet.
-// Updates value of a key
-if (!JSdict.prototype.update) {
-	JSdict.prototype.update = function (key, val) {
-
-		if (key == null || val == null) {
-			return "Key or Value cannot be null";
-		}
-		// Verify dict integrity before each operation
-		if (keysLength != valsLength) {
-			return "Dictionary inconsistent. Keys length don't match values!";
-		}
-		var keysLength = this.Keys.length;
-		var valsLength = this.Values.length;
-		var flag = false;
-		for (var i = 0; i < keysLength; i++) {
-			if (this.Keys[i] == key) {
-				this.Values[i] = val;
-				flag = true;
-				break;
-			}
-		}
-		if (!flag) {
-			return "Key does not exist";
-		}
-        logToFile("Saving dictionary first");
-        saveData(dict);
-	}
-
-}
-
-// Check if dictionary extensions aren't implemented yet.
-// Adds a unique key value pair
-if (!JSdict.prototype.add) {
-	JSdict.prototype.add = function (key, val) {
-
-		// Allow only strings or numbers as keys
-		if (typeof(key) == "number" || typeof(key) == "string") {
-			if (key == null || val == null) {
-				return "Key or Value cannot be null";
-			}
-			if (keysLength != valsLength) {
-				return "Dictionary inconsistent. Keys length don't match values!";
-			}
-			var keysLength = this.Keys.length;
-			var valsLength = this.Values.length;
-			for (var i = 0; i < keysLength; i++) {
-				if (this.Keys[i] == key) {
-					return "Duplicate keys not allowed!";
-				}
-			}
-			this.Keys.push(key);
-			this.Values.push(val);
-            logToFile("Saving dictionary first");
-            saveData(dict);
-		} else {
-			return "Only number or string can be key!";
-		}
-	}
-}
-
-// Check if dictionary extensions aren't implemented yet.
-// Removes a key value pair
-if (!JSdict.prototype.remove) {
-	JSdict.prototype.remove = function (key) {
-		if (key == null) {
-			return "Key cannot be null";
-		}
-		if (keysLength != valsLength) {
-			return "Dictionary inconsistent. Keys length don't match values!";
-		}
-		var keysLength = this.Keys.length;
-		var valsLength = this.Values.length;
-		var flag = false;
-		for (var i = 0; i < keysLength; i++) {
-			if (this.Keys[i] == key) {
-				this.Keys.shift(key);
-				this.Values.shift(this.Values[i]);
-				flag = true;
-				break;
-			}
-		}
-        logToFile("Saving dictionary first");
-        saveData(dict);
-		if (!flag) {
-			return "Key does not exist";
-		}
-	}
-}
-
-loadData();
 app.listen();
 getAllPeople(peopleInRoom);
 logToFile(peopleInRoom);
