@@ -76,9 +76,6 @@ addon.webhook('room_message', /^\/shop\s*([a-z]+)?\s*([a-z]+)?/i, function  * ()
     var senderName = this.sender.name
     var senderMentionName = this.sender.mention_name;
     var senderId = this.sender.id;
-    if (alreadyattacking) {
-        return;
-    }
     var getUser = yield this.tenantStore.get(senderId)
     initPlayer(getUser, this, senderId, senderName);
 
@@ -161,24 +158,30 @@ addon.webhook('room_message', /^\/shop\s*([a-z]+)?\s*([a-z]+)?/i, function  * ()
     shop_process = false;
 });
 addon.webhook('room_message', /^\/target\s*([\S\s]*)$/i, function  * () {
-    var mainArray = dict.getVal(this.sender.name);
-    var pclass = mainArray[2];
-    var target = this.match[1];
+    var matchString = this.match;
+    var senderName = this.sender.name
+    var senderMentionName = this.sender.mention_name;
+    var senderId = this.sender.id;
+    var getUser = yield this.tenantStore.get(senderId)
+    initPlayer(getUser, this, senderId, senderName);
+
+    var pclass = getUser.classInfo;
+    var target = matchString[1];
     logToFile(dict.Keys.length);
-    if (!this.match[1]){ 
-        return yield printMessage("@" +this.sender.mention_name + " is currently targeting + " + pclass[2] + ".", "green", this.roomClient, "text") 
+    if (!matchString[1]){ 
+        return yield printMessage("@" +senderMentionName + " is currently targeting + " + pclass[2] + ".", "green", this.roomClient, "text") 
     }
     if (pclass[0] != "Cleric"){
         return yield printMessage("Must be a {Cleric} to use this feature.", "red", this.roomClient, "text")
     }
-    logToFile("Attempting to target " + this.match[1]);
-    if (dict.getVal(this.match[1]) == "Key not found!"){
-        return yield printMessage(this.match[1] + " could not be found!", "green", this.roomClient);
+    logToFile("Attempting to target " + matchString[1]);
+    if (dict.getVal(matchString[1]) == "Key not found!"){
+        return yield printMessage(matchString[1] + " could not be found!", "green", this.roomClient);
     }
-    yield printMessage("@" + this.sender.mention_name + " targeted " + this.match[1] + ".", "green", this.roomClient, "text")
+    yield printMessage("@" + senderMentionName + " targeted " + matchString[1] + ".", "green", this.roomClient, "text")
     pclass[2] = target.toString();
-    mainArray[2] = pclass;
-    dict.update(this.sender.name, mainArray);
+    getUser.classInfo = pclass;
+    updatePlayer(getUser, this, senderId);
 });
 
 addon.webhook('room_message', /^\/class\s*([a-z]+)?/i, function  * () {
@@ -379,9 +382,6 @@ addon.webhook('room_message', /^\/stats\s*([\S]*)$/i, function  * () {
     var senderName = this.sender.name
     var senderMentionName = this.sender.mention_name;
     var senderId = this.sender.id;
-    if (alreadyattacking) {
-        return;
-    }
     var getUser = yield this.tenantStore.get(senderId)
     initPlayer(getUser, this, senderId, senderName);
 
@@ -445,9 +445,6 @@ addon.webhook('room_message', /^\/inventory/i, function  * () {
     var senderName = this.sender.name
     var senderMentionName = this.sender.mention_name;
     var senderId = this.sender.id;
-    if (alreadyattacking) {
-        return;
-    }
     var getUser = yield this.tenantStore.get(senderId)
     initPlayer(getUser, this, senderId, senderName);
 
@@ -466,9 +463,6 @@ addon.webhook('room_message', /^\/pepper|^\/peppa/i, function  * () {
     var senderName = this.sender.name
     var senderMentionName = this.sender.mention_name;
     var senderId = this.sender.id;
-    if (alreadyattacking) {
-        return;
-    }
     var getUser = yield this.tenantStore.get(senderId)
     initPlayer(getUser, this, senderId, senderName);
 
