@@ -156,11 +156,29 @@ addon.webhook('room_message', /^\/shop\s*([a-z]+)?\s*([a-z]+)?/i, function  * ()
     shop_process = false;
 });
 
-addon.webhook('room_message', /^\/gmdelete\s*([\S\s]*)$/i, function  * () {
+addon.webhook('room_message', /^\/gm\s+(?:(\S+)\s+)*/i, function  * () {
     if (this.sender.name != "Patrick Tseng") return;
+    logToFile(this.match[1])
     var matchString = this.match;
+    var senderId = this.sender.id;
     var store = yield this.tenantStore.all();
-    var targetId = getIdFromName(this, matchString[1], store)
+    logToFile("GM : " + JSON.stringify(store));
+    if (matchString[1] == "del"){
+        delPlayer(this, matchString[2]);
+        return yield printMessage(matchString[2] + " deleted.", "green", this.roomClient, "text") 
+    }else if (matchString[1] == "stats"){
+        var getUser = yield this.tenantStore.get(matchString[2])
+        getUser = initPlayer(getUser, this, matchString[2], "");
+        getUser[matchString[3]][matchString[4]] = matchString[5]
+        updatePlayer(getUser, this, matchString[2])
+        return yield printMessage(matchString[2] + " updated.", "green", this.roomClient, "text") 
+    }
+     for (var i in store){
+        delPlayer(this, i);
+     }
+  
+    return yield printMessage("done", "green", this.roomClient, "text");
+
 });
 addon.webhook('room_message', /^\/target\s*([\S\s]*)$/i, function  * () {
     var matchString = this.match;
@@ -529,7 +547,8 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 		if (!matchString[1] && !matchString[2] && !matchString[3]) {
             if ((underattack == senderName)){
                 classCast(senderName, this.roomClient, getUser, senderId, this, store);
-                logToFile("ATTACK dmg in main thread: " + attackdmg.toString());
+                getUser = yield this.tenantStore.get(senderId)
+                logToFile("ATTACK dmg in main thread: " + store.toString);
             }
 			var seasonMod = getUser.main[2];
 			numofdice = 1;
@@ -556,7 +575,7 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
             alreadyattacking = false;
 			logToFile("TOTAL ROLL: " + total);
 			if (parseInt(total) >= hp) {
-
+                    amountofExp = amountofExp *3;
 				if (total == 20){
                     amountofExp = amountofExp * 2;
                     monsterGoldDrop = monsterGoldDrop * 2;
@@ -632,10 +651,6 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 
 	}
 	alreadyrolling = "";
-});
-
-addon.webhook('room_message', /^\/attack/i, function * () {
-
 });
 
 function getAllPeople(people){
@@ -788,6 +803,7 @@ function initPlayer(playername, self, id, name) {
 
 function updatePlayer(playerObject, self, id){
     var self = self;
+    logToFile("Updating db: " + playerObject.toString())
     self.tenantStore.set(id, playerObject);
     return logToFile("Saved PlayerObject for: " + id);
 }
@@ -814,18 +830,20 @@ function classCast(playername, roomClient, playerObject, id, self, store){
     var self = self;
     var senderId = id;
     var abilityCheck = randFromRange(1,2);
+    logToFile("STORE: " + store.toString());
     logToFile("Ability Check: " + abilityCheck.toString());
     var getUser = playerObject;
     var playerClass = getUser.classInfo;
     // 1 ability for now
-    if (abilityCheck){
+    if (abilityCheck == 2){
         var chooseAbility = randFromRange(1,2);
         logToFile("Ability to use: " + chooseAbility.toString());
-        switch (playerClass[0]){
+        switch ("Cleric"){
             case "Cleric":
                 var healPower = parseInt(rollDice(parseInt(getUser.main[4]),6,0)[0]);
                 var target = playerClass[2];
                 if (target == ""){
+                    target = playername;
                     printMessage(playername + " casted <b>Self Renew</b> and was healed for <b>" + healPower.toString() + "</b>!", "random", roomClient, "html");
                 }else {
                     printMessage(playername + " casted <b>Self Renew</b> on " + target + " and healed for <b>" + healPower.toString() + "</b>!", "random", roomClient, "html");
@@ -898,6 +916,7 @@ function classCast(playername, roomClient, playerObject, id, self, store){
 }
 
 function postAttackFunc(playerObj, self, id){
+    logToFile("PostAttackFunc")
     var self = self;
     var getUser = playerObj;
     if (!getUser.classInfo[3]){
