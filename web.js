@@ -64,12 +64,11 @@ if (process.env.DEV_KEY) {
 }
 String.prototype.startsWith = function(prefix) {
     return this.indexOf(prefix) === 0;
+}    
+function isInArray(value, array){
+    return array.indexOf(value) > -1;
 }
-// Object reference maker
-Object.prototype.$=function $(val){if(val)this.valueOf=this.toSource=this.toString=function(){return val};return val;};
-function isInArray(value, array) {
-  return array.indexOf(value) > -1;
-}
+
 addon.webhook('room_message', /^\/shop\s*([a-z]+)?\s*([a-z]+)?/i, function  * () {
     if (shop_process){
         return
@@ -79,7 +78,7 @@ addon.webhook('room_message', /^\/shop\s*([a-z]+)?\s*([a-z]+)?/i, function  * ()
     var senderMentionName = this.sender.mention_name;
     var senderId = this.sender.id;
     var getUser = yield this.tenantStore.get(senderId)
-    initPlayer(getUser, this, senderId, senderName);
+    getUser = initPlayer(getUser, this, senderId, senderName);
 
     shop_process = true;
     if (matchString[1] != "buy" || !matchString[2] ){
@@ -156,24 +155,32 @@ addon.webhook('room_message', /^\/shop\s*([a-z]+)?\s*([a-z]+)?/i, function  * ()
 
     shop_process = false;
 });
+
+addon.webhook('room_message', /^\/gmdelete\s*([\S\s]*)$/i, function  * () {
+    if (this.sender.name != "Patrick Tseng") return;
+    var matchString = this.match;
+    var store = yield this.tenantStore.all();
+    var targetId = getIdFromName(this, matchString[1], store)
+});
 addon.webhook('room_message', /^\/target\s*([\S\s]*)$/i, function  * () {
     var matchString = this.match;
     var senderName = this.sender.name
     var senderMentionName = this.sender.mention_name;
     var senderId = this.sender.id;
+    var store = yield this.tenantStore.all();
     var getUser = yield this.tenantStore.get(senderId)
-    initPlayer(getUser, this, senderId, senderName);
+    getUser = initPlayer(getUser, this, senderId, senderName);
 
     var pclass = getUser.classInfo;
     var target = matchString[1];
     if (!matchString[1]){ 
-        return yield printMessage("@" +senderMentionName + " is currently targeting + " + pclass[2] + ".", "green", this.roomClient, "text") 
+        return yield printMessage("@" +senderMentionName + " is currently targeting " + pclass[2] + ".", "green", this.roomClient, "text") 
     }
-    if (pclass[0] != "Cleric"){
-        return yield printMessage("Must be a {Cleric} to use this feature.", "red", this.roomClient, "text")
-    }
+    // if (pclass[0] != "Cleric"){
+    //     return yield printMessage("Must be a {Cleric} to use this feature.", "red", this.roomClient, "text")
+    // }
     logToFile("Attempting to target " + matchString[1]);
-    if (getIdFromName(this, matchString[1]) == -1){
+    if (getIdFromName(this, matchString[1], store) == -1){
         return yield printMessage(matchString[1] + " could not be found!", "green", this.roomClient);
     }
     yield printMessage("@" + senderMentionName + " targeted " + matchString[1] + ".", "green", this.roomClient, "text")
@@ -188,10 +195,10 @@ addon.webhook('room_message', /^\/class\s*([a-z]+)?/i, function  * () {
     var senderMentionName = this.sender.mention_name;
     var senderId = this.sender.id;
     var getUser = yield this.tenantStore.get(senderId)
-    initPlayer(getUser, this, senderId, senderName);
-
+    getUser = initPlayer(getUser, this, senderId, senderName);
+    var pclass = getUser.classInfo;
 	if (matchString[1] == "plsgivemesomethinggood"){
-		pclass = getUser.classInfo;
+	
 
 		if (parseInt(pclass[1]) <= 0){
             return printMessage(senderName +"'s class has been chosen already. You cannot change destiny.", "red", this.roomClient);
@@ -199,7 +206,6 @@ addon.webhook('room_message', /^\/class\s*([a-z]+)?/i, function  * () {
         pclass[1] -= 1;
 		chosenClass = classTypes[Math.floor(Math.random() * classTypes.length)];
 		printMessage(senderName + "'s rolls the destiny dice and is chosen as a......<b>" + chosenClass + "</b>!!!!", "green", this.roomClient);
-
 		pclass[0] = chosenClass;
 		getUser.classInfo = pclass;
         updatePlayer(getUser, this, senderId);
@@ -212,13 +218,21 @@ addon.webhook('room_message', /^\/class\s*([a-z]+)?/i, function  * () {
 
 });
 addon.webhook('room_message', /^\/arena\s*([a-z]+)?/i, function  * () {
-    return;
-    var mainArray = dict.getVal(this.sender.name);
-    var playerInventory = mainArray[1];
-    if (this.match[1] == "join" && arenaStartLobby && !isInArray(this.sender.name, arenaPlayers)){
-        arenaPlayers.push(this.sender.name);
+    var matchString = this.match;
+    var senderName = this.sender.name
+    var senderMentionName = this.sender.mention_name;
+    var senderId = this.sender.id;
+    var getUser = yield this.tenantStore.get(senderId)
+    getUser = initPlayer(getUser, this, senderId, senderName);
+    var playerInventory = getUser.inventory
+    if (isInArray(senderName, arenaPlayers)){
+        return yield printMessage("You already joined the arena!", "yellow", this.roomClient, "text");
+    }
+
+    if (matchString[1] == "join" && arenaStartLobby && !isInArray(senderName, arenaPlayers)){
+        arenaPlayers.push(senderName);
         
-        yield printMessage("@" + this.sender.mention_name + " has joined the arena! Need " + (3- arenaPlayers.length).toString() + " more players!", "yellow", this.roomClient, "text");
+        yield printMessage("@" + senderMentionName + " has joined the arena! Need " + (3- arenaPlayers.length).toString() + " more players!", "yellow", this.roomClient, "text");
         if (arenaPlayers.length == 3){
             arenaPlayers = new Array();
             arenaStartLobby = false;
@@ -233,14 +247,17 @@ addon.webhook('room_message', /^\/arena\s*([a-z]+)?/i, function  * () {
                 }, 20000, arenaStarted, this.roomClient)
 
         }
-    }else if (isInArray("arenatoken", playerInventory) && !arenaStartLobby){
+    }else if (matchString[1] == "start" && isInArray("arenatoken", playerInventory) && !arenaStartLobby){
         playerInventory.splice(playerInventory.indexOf("arenatoken"), 1);
-        mainArray[1] = playerInventory;
-        dict.update(this.sender.name, mainArray);
-        yield printMessage("@" + this.sender.mention_name + " has started an arena! Requires 3 other players to start. Type '/arena join' to help start it!", "yellow", this.roomClient, "text");
+        getUser.inventory = playerInventory;
+        updatePlayer(getUser, this, senderId);
+        yield printMessage("@" + senderMentionName + " has started an arena! Requires 3 other players to start. Type '/arena join' to help start it!", "yellow", this.roomClient, "text");
         arenaStartLobby = true;
-
+        return;
     }else{
+        return yield printMessage("Must aquire an arenatoken, and start arena with '/arena start'", "yellow", this.roomClient, "text");
+    }
+    if (matchString[1] == "join" && !arenaStartLobby){
         return yield printMessage("No arena has been started", "yellow", this.roomClient, "text");
     }
     
@@ -255,10 +272,9 @@ addon.webhook('room_message', /^[^\/].*|^\/farm/i, function  * () {
     var senderId = this.sender.id;
 
     var getUser = yield this.tenantStore.get(senderId)
-    initPlayer(getUser, this, senderId, senderName);
+    getUser = initPlayer(getUser, this, senderId, senderName);
 
     var dataBase = yield this.tenantStore.all();
-    logToFile(dataBase);
     if (!globalMonTimer){
         logToFile("In Timer setup");
         globalMonTimer = setInterval(function(roomC, tar) {
@@ -304,7 +320,7 @@ addon.webhook('room_message', /^[^\/].*|^\/farm/i, function  * () {
 	var doweatk = randFromRange(increaseMonsterChance[senderName], 20);
     logToFile("Monster encounter rolls: " + doweatk.toString());
     logToFile("Arena started?: " + arenaStarted.status);
-	if ((parseInt(doweatk) == 17 || trigger || senderName == "Patrick Tseng" || arenaStarted.status == true) && !alreadyattacking) {
+	if ((parseInt(doweatk) == 17 || trigger || arenaStarted.status == true) && !alreadyattacking) {
 
 		alreadyattacking = true;
 		underattack = senderName;
@@ -319,6 +335,7 @@ addon.webhook('room_message', /^[^\/].*|^\/farm/i, function  * () {
         }else{
 		  levelofMob = randFromRange(playerLevel-2, (playerLevel +1));
         }
+        logToFile("level of monster :" + levelofMob);
 		// attackdmg = (Math.floor(Math.random() * (levelofMob *5)) + levelofMob);
         // roll a xd8
         attackdmg = (rollDice(Math.ceil(parseInt(levelofMob)/2),8,0));
@@ -337,7 +354,6 @@ addon.webhook('room_message', /^[^\/].*|^\/farm/i, function  * () {
         logToFile("GainHp: " + gainHP);
 		chanceOfFaith = (randFromRange(1,4)== 2);
 		amountofExp = randFromRange(1,10);
-        logToFile("HP3 of monster :" + hp);
         monsterGoldDrop = randFromRange(1,levelofMob);
 		monsterType = typesOfMonsters[Math.floor(Math.random() * typesOfMonsters.length)];
 		monsterfoodDrop = foodDrops[Math.floor(Math.random() * foodDrops.length)];
@@ -379,7 +395,7 @@ addon.webhook('room_message', /^\/stats\s*([\S]*)$/i, function  * () {
     var senderMentionName = this.sender.mention_name;
     var senderId = this.sender.id;
     var getUser = yield this.tenantStore.get(senderId)
-    initPlayer(getUser, this, senderId, senderName);
+    getUser = initPlayer(getUser, this, senderId, senderName);
 
     // TODO: FIX AND UPDATE
     if (matchString[1] == "all"){
@@ -443,7 +459,7 @@ addon.webhook('room_message', /^\/inventory/i, function  * () {
     var senderMentionName = this.sender.mention_name;
     var senderId = this.sender.id;
     var getUser = yield this.tenantStore.get(senderId)
-    initPlayer(getUser, this, senderId, senderName);
+    getUser = initPlayer(getUser, this, senderId, senderName);
 
 	inventory = getUser.inventory;
 	yield this.roomClient.sendNotification(senderName + "'s inventory: " + inventory.toString());
@@ -460,7 +476,7 @@ addon.webhook('room_message', /^\/pepper|^\/peppa/i, function  * () {
     var senderMentionName = this.sender.mention_name;
     var senderId = this.sender.id;
     var getUser = yield this.tenantStore.get(senderId)
-    initPlayer(getUser, this, senderId, senderName);
+    getUser = initPlayer(getUser, this, senderId, senderName);
 
 	stats = getUser.main;
 	if (stats[1] <= 0) {
@@ -486,8 +502,10 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
     var senderName = this.sender.name
     var senderMentionName = this.sender.mention_name;
     var senderId = this.sender.id;
+    var store = yield this.tenantStore.all();
     var getUser = yield this.tenantStore.get(senderId)
-    initPlayer(getUser, this, senderId, senderName);
+
+    getUser = initPlayer(getUser, this, senderId, senderName);
 
 	alreadyrolling = senderName;
 	var numofvars = matchString;
@@ -510,7 +528,7 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 		var total = 0;
 		if (!matchString[1] && !matchString[2] && !matchString[3]) {
             if ((underattack == senderName)){
-                classCast(senderName, this.roomClient, getUser, senderId, this);
+                classCast(senderName, this.roomClient, getUser, senderId, this, store);
                 logToFile("ATTACK dmg in main thread: " + attackdmg.toString());
             }
 			var seasonMod = getUser.main[2];
@@ -575,6 +593,7 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
                 trigger = false;
                 underattack = "";
 			} else {
+                logToFile("losing hp: " + attackdmg.toString());
 				yield this.roomClient.sendNotification("@" + senderMentionName + ' lost ' + attackdmg[0] + ' hp!', {
 					color : 'purple',
 					format : 'text'
@@ -752,8 +771,8 @@ function sleep (milliSeconds) {
 function initPlayer(playername, self, id, name) {
     var self = self;
     if (playername){
-    logToFile("USER DOES EXIT: " + playername.main[2])
-     return;
+    logToFile("USER DOES EXIST: " + playername.profile[0])
+     return playername;
     }
     logToFile("CREATING USER: " + id);
     var playerObject = {
@@ -764,7 +783,7 @@ function initPlayer(playername, self, id, name) {
 
     }
     self.tenantStore.set(id, playerObject);
-    return;
+    return playerObject;
 }
 
 function updatePlayer(playerObject, self, id){
@@ -777,11 +796,12 @@ function delPlayer(self, id){
     self.tenantStore.del(id);
     return logToFile("Deleted PlayerObject for: " + id);
 }
-function getIdFromName(self, name){
-    var allUsers = self.tenantStore.all();
-    for (var i in getUsers){
-        var profile = self.tenantStore.get(i).profile;
-        logToFile("Getting name from " + i);
+function getIdFromName(self, name, store){
+    var allUsers = store;
+    logToFile(allUsers);
+    for (var i in allUsers){
+        logToFile("Getting name from " + allUsers[i].profile);
+        var profile = allUsers[i].profile;
         if (profile[0] == name){
             return i;
         }
@@ -790,7 +810,7 @@ function getIdFromName(self, name){
     return -1
 }
 
-function classCast(playername, roomClient, playerObject, id, self){
+function classCast(playername, roomClient, playerObject, id, self, store){
     var self = self;
     var senderId = id;
     var abilityCheck = randFromRange(1,2);
@@ -798,7 +818,7 @@ function classCast(playername, roomClient, playerObject, id, self){
     var getUser = playerObject;
     var playerClass = getUser.classInfo;
     // 1 ability for now
-    if (abilityCheck == 2 || playerClass[0] == "Warrior"){
+    if (abilityCheck){
         var chooseAbility = randFromRange(1,2);
         logToFile("Ability to use: " + chooseAbility.toString());
         switch (playerClass[0]){
@@ -810,11 +830,13 @@ function classCast(playername, roomClient, playerObject, id, self){
                 }else {
                     printMessage(playername + " casted <b>Self Renew</b> on " + target + " and healed for <b>" + healPower.toString() + "</b>!", "random", roomClient, "html");
                 }
-                var targetId = getIdFromName(self, target);
-                var targetMainArray = self.tenantStore.get(targetId).main;
+                var targetId = getIdFromName(self, target, store);
+                logToFile("GOT ID: " + targetId);
+                var targetMainArray = store[targetId];
                 logToFile("targerray: " + targetMainArray.toString());
-                var targetStats = targetMainArray[0];
+                var targetStats = targetMainArray.main;
                 targetStats[0] = parseInt(targetStats[0]) + healPower;
+                logToFile("targetStats after heal: " + targetStats.toString())
                 targetMainArray.main = targetStats;
                 updatePlayer(targetMainArray, self, targetId)
                 break;
@@ -856,7 +878,7 @@ function classCast(playername, roomClient, playerObject, id, self){
                     printMessage(playername + " executes <b>Pancakes From Above</b> added <b>"+attackModi.toString()+"</b> to the seasoning modifier.", "random", roomClient, "html");
                 }
                 logToFile("atk dmg before cast: " + attackdmg.toString());
-                attackdmg[0] = (attackdmg[0] * getUser.main[4]);
+                attackdmg[0] = (attackdmg[0] + getUser.main[4]*2);
                 if (attackdmg[0] >= 100){
                     attackdmg[0] = 100; 
                 }
