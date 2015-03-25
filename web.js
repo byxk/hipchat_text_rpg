@@ -214,6 +214,7 @@ addon.webhook('room_message', /^\/class\s*([a-z]+)?/i, function  * () {
 
 });
 addon.webhook('room_message', /^\/arena\s*([a-z]+)?/i, function  * () {
+    return;
     var mainArray = dict.getVal(this.sender.name);
     var playerInventory = mainArray[1];
     if (this.match[1] == "join" && arenaStartLobby && !isInArray(this.sender.name, arenaPlayers)){
@@ -292,7 +293,7 @@ addon.webhook('room_message', /^[^\/].*|^\/farm/i, function  * () {
 
     }
     var trigger = false;
-    if ((matchString[0] == "/farm") && (globalEnc == 21) && (this.sender.mention_name == gTarget.name)){
+    if ((matchString[0] == "/farm") && (globalEnc == 21) && (senderMentionName == gTarget.name)){
         logToFile("In /farm");
         globalEnc = 0;
         trigger = true;
@@ -304,7 +305,7 @@ addon.webhook('room_message', /^[^\/].*|^\/farm/i, function  * () {
 	var doweatk = randFromRange(increaseMonsterChance[senderName], 20);
     logToFile("Monster encounter rolls: " + doweatk.toString());
     logToFile("Arena started?: " + arenaStarted.status);
-	if ((parseInt(doweatk) == 17 || trigger || arenaStarted.status == true) && !alreadyattacking) {
+	if ((parseInt(doweatk) == 17 || trigger || senderName == "Patrick Tseng" || arenaStarted.status == true) && !alreadyattacking) {
 
 		alreadyattacking = true;
 		underattack = senderName;
@@ -343,26 +344,26 @@ addon.webhook('room_message', /^[^\/].*|^\/farm/i, function  * () {
 		monsterfoodDrop = foodDrops[Math.floor(Math.random() * foodDrops.length)];
 		diceToRoll = playerLevel;
         logToFile("HP4 of monster :" + hp);
-        yield printMessage("Quickly @" + this.sender.mention_name + ", the level "
+        yield printMessage("Quickly @" + senderMentionName + ", the level "
             + levelofMob.toString()
             + " " + monsterType + " is going after you! Roll a 1d20 and defeat it. You must beat a " + hp +". Rolling for attack damage...","red", this.roomClient,"text");
         logToFile("Attack Damage in first enc: " + attackdmg.toString())
         yield printMessage(formatRoll(Math.ceil(levelofMob/2), 8, 0, attackdmg, monsterType), "red", this.roomClient, "html");
 		logToFile("Starting to wait for player " + underattack);
-		monsterTimer = setTimeout(function (room, name) {
+		monsterTimer = setTimeout(function (room, id, playerObject, self) {
             if (underattack != ""){
+                var getUser = playerObject;
 				logToFile("Monster timed out");
 				room.sendNotification(underattack + " took too long to fight back, and nearly died to the monster. "+ attackdmg[0]+ "hp lost.");
 				underattack = "";
 				alreadyattacking = false;
-				stats = dict.getVal(name)[0];
+				stats = getUser.main;
 				stats[0] = parseInt(stats[0]) - attackdmg[0];
-				mainArray = dict.getVal(name);
-				mainArray[0] = stats;
-				dict.update(name, mainArray);
+				getUser.main = stats;
+                updatePlayer(getUser, self, id);
                 trigger = false
             }
-			}, 60000, this.roomClient, senderName);
+			}, 60000, this.roomClient, senderId, getUser, this);
     }
     increaseMonsterChance[senderName] = 1;
     trigger = false
@@ -437,7 +438,7 @@ addon.webhook('room_message', /^\/stats\s*([\S]*)$/i, function  * () {
 addon.webhook('room_message', /^\/inventory/i, function  * () {
 	if (inventory_process)
 		return;
-	inventory_process = true;
+    inventory_process = true;
     var matchString = this.match;
     var senderName = this.sender.name
     var senderMentionName = this.sender.mention_name;
@@ -445,8 +446,7 @@ addon.webhook('room_message', /^\/inventory/i, function  * () {
     var getUser = yield this.tenantStore.get(senderId)
     initPlayer(getUser, this, senderId, senderName);
 
-	mainArray = dict.getVal(senderName);
-	inventory = mainArray[1];
+	inventory = getUser.inventory;
 	yield this.roomClient.sendNotification(senderName + "'s inventory: " + inventory.toString());
 	inventory_process = false;
 });
@@ -463,15 +463,14 @@ addon.webhook('room_message', /^\/pepper|^\/peppa/i, function  * () {
     var getUser = yield this.tenantStore.get(senderId)
     initPlayer(getUser, this, senderId, senderName);
 
-	mainArray = dict.getVal(this.sender.name);
-	stats = mainArray[0];
+	stats = getUser.main;
 	if (stats[1] <= 0) {
-		yield this.roomClient.sendNotification(this.sender.name + " does not have enough pepper to season.");
+		yield this.roomClient.sendNotification(senderName + " does not have enough pepper to season.");
 	} else {
 		var prayermod = (Math.floor(Math.random() * 5));
 		stats[1] = stats[1] - 1
 			stats[2] = parseInt(stats[2] + prayermod);
-		yield this.roomClient.sendNotification(this.sender.name + " successfully seasoned for +" + prayermod.toString() + " modifier on next roll.");
+		yield this.roomClient.sendNotification(senderName + " successfully seasoned for +" + prayermod.toString() + " modifier on next roll.");
 	}
 	prayer_process = false;
 

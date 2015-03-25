@@ -1,3 +1,6 @@
+3/25/2015
+* Updated plugin to work with mongoDb
+
 3/23/2015
 * Random monster encounter no longer happens on weekends.
 * buffed heals from killing monsters
@@ -25,7 +28,7 @@ Initial Plan for arena:
 * added pepper, rerolls to shop
 * reduced the amount of text in /stats all
 
-3/18/2015:
+3/18/2015
 * Nerfed heals gained from killing mobs.
 * Added basic shop support (hp pots only)
 * Increased dmg of magic missiles 
