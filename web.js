@@ -246,13 +246,14 @@ addon.webhook('room_message', /^\/arena\s*([a-z]+)?/i, function  * () {
     
 });
 addon.webhook('room_message', /^[^\/].*|^\/farm/i, function  * () {
+    if (alreadyattacking) {
+        return;
+    }
     var matchString = this.match;
     var senderName = this.sender.name
     var senderMentionName = this.sender.mention_name;
     var senderId = this.sender.id;
-    if (alreadyattacking) {
-        return;
-    }
+
     var getUser = yield this.tenantStore.get(senderId)
     initPlayer(getUser, this, senderId, senderName);
 
@@ -479,6 +480,8 @@ addon.webhook('room_message', /^\/pepper|^\/peppa/i, function  * () {
 });
 
 addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9]+))?/i, function  * () {
+    if (alreadyrolling)
+        return;
     var matchString = this.match;
     var senderName = this.sender.name
     var senderMentionName = this.sender.mention_name;
@@ -486,8 +489,6 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
     var getUser = yield this.tenantStore.get(senderId)
     initPlayer(getUser, this, senderId, senderName);
 
-	if (senderName == alreadyrolling)
-		return;
 	alreadyrolling = senderName;
 	var numofvars = matchString;
 	var numofdice = matchString[1];
