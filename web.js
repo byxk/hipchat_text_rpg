@@ -404,8 +404,9 @@ addon.webhook('room_message', /^\/stats\s*([\S]*)$/i, function  * () {
             var tempPlayerArray = yield this.tenantStore.get(personName);
             var tempPlayerStats = tempPlayerArray.main;
             var tempPlayerClass = tempPlayerArray.classInfo
+            var profile = tempPlayerArray.profile
 
-            yield printMessage(personName + "'s stats | " 
+            yield printMessage(profile[0] + "'s stats | " 
                 + tempPlayerClass[0] + " | hp: " 
                 + tempPlayerStats[0].toString() + " | Level: " 
                 + tempPlayerStats[4] + " | EXP: " + tempPlayerStats[3] 
@@ -779,6 +780,11 @@ function updatePlayer(playerObject, self, id){
     var self = self;
     self.tenantStore.set(id, playerObject);
     return logToFile("Saved PlayerObject for: " + id);
+}
+function delPlayer(self, id){
+    var self = self;
+    self.tenantStore.del(id);
+    return logToFile("Deleted PlayerObject for: " + id);
 }
 function checkPlayer(playername){
 	mainArray = dict.getVal(playername);
