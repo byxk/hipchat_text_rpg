@@ -185,35 +185,31 @@ addon.webhook('room_message', /^\/target\s*([\S\s]*)$/i, function  * () {
 });
 
 addon.webhook('room_message', /^\/class\s*([a-z]+)?/i, function  * () {
-	logToFile(this.match[1]);
-	if (this.match[1] == "plsgivemesomethinggood"){
-		mainArray = dict.getVal(this.sender.name);
-		pclass = mainArray[2];
+    var matchString = this.match;
+    var senderName = this.sender.name
+    var senderMentionName = this.sender.mention_name;
+    var senderId = this.sender.id;
+    var getUser = yield this.tenantStore.get(senderId)
+    initPlayer(getUser, this, senderId, senderName);
+
+	if (matchString[1] == "plsgivemesomethinggood"){
+		pclass = getUser.classInfo;
 
 		if (parseInt(pclass[1]) <= 0){
-            return printMessage(this.sender.name +"'s class has been chosen already. You cannot change destiny.", "red", this.roomClient);
+            return printMessage(senderName +"'s class has been chosen already. You cannot change destiny.", "red", this.roomClient);
         } 
         pclass[1] -= 1;
 		chosenClass = classTypes[Math.floor(Math.random() * classTypes.length)];
-		printMessage(this.sender.name + "'s rolls the destiny dice and is chosen as a......<b>" + chosenClass + "</b>!!!!", "green", this.roomClient);
+		printMessage(senderName + "'s rolls the destiny dice and is chosen as a......<b>" + chosenClass + "</b>!!!!", "green", this.roomClient);
 
 		pclass[0] = chosenClass;
-		mainArray[2] = pclass;
-		dict.update(this.sender.name, mainArray);
+		getUser.classInfo = pclass;
+        updatePlayer(getUser, this, senderId);
 		return;
 
 	}else{
-        var mainArray = dict.getVal(this.sender.name);
-        var pclass = mainArray[2];
-        var rerolls = pclass[1];
-        if (pclass[1] == "" && pclass[1] != 0){ 
-            logToFile("REROLLS: " + rerolls);
-            pclass[1] = 1;
-        }
-        mainArray[2] = pclass;
-        dict.update(this.sender.name, mainArray);
 		printMessage("Available classes: Cleric, Mage, Warrior, Princess. Choose with /class plsgivemesomethinggood. @" +
-            this.sender.mention_name + " has " + pclass[1] + "x [Bay leaf] left!", "yellow", this.roomClient, "text");
+            senderMentionName + " has " + pclass[1] + "x [Bay leaf] left!", "yellow", this.roomClient, "text");
 	}
 
 });
