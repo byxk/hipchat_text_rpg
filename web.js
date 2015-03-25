@@ -86,22 +86,21 @@ addon.webhook('room_message', /^\/shop\s*([a-z]+)?\s*([a-z]+)?/i, function  * ()
         return
     }
     shop_process = true;
-    if (this.match[1] != "buy" || !this.match[2] ){
+    if (matchString[1] != "buy" || !matchString[2] ){
         printMessage("Buy and use an item automatically with /shop buy itemname.", "green", this.roomClient);
         printMessage("HealthPotion - 15g | Pepper - 3g | Bayleaf - 5g | Arenatoken - 20g", "green", this.roomClient);
         shop_process = false;
         return;
     }
-    var buyingItem = this.match[2];
-    logToFile(this.match[2] == "healthpotion" || this.match[2] == "pepper");
+    var buyingItem = matchString[2];
+    logToFile(matchString[2] == "healthpotion" || matchString[2] == "pepper");
     // just gonna have a static shop for now
-    var playerGold = parseInt(dict.getVal(this.sender.name)[0][5]);
-    var mainArray = dict.getVal(this.sender.name);
-    var stats = mainArray[0];
-    var playerClass = mainArray[2];
-    var inventory = mainArray[1];
+    var stats = getUser.main
+    var playerGold = parseInt(stats[5]);
+    var playerClass = getUser.classInfo
+    var inventory = getUser.inventory
     logToFile("In shopbuying: " + stats)
-    if (this.match[2] == "healthpotion"){
+    if (matchString[2] == "healthpotion"){
         if (15 > playerGold) {
             shop_process = false;
             return yield printMessage("Not enough gold.", "green", this.roomClient);
@@ -109,12 +108,12 @@ addon.webhook('room_message', /^\/shop\s*([a-z]+)?\s*([a-z]+)?/i, function  * ()
             stats[5] -= 15;
             // hp heals for 30
             stats[0] += 30;
-            mainArray[0] = stats;
-            dict.update(this.sender.name, mainArray);
+            getUser.main = stats;
+            updatePlayer(getUser, this, senderId)
             shop_process = false;
             return yield printMessage("HP potion bought and used automatically, +30hp.", "green", this.roomClient);
         }
-    } else if (this.match[2] == "pepper"){
+    } else if (matchString[2] == "pepper"){
         if (2 > playerGold) {
             shop_process = false;
             return yield printMessage("Not enough gold.", "green", this.roomClient);
@@ -122,12 +121,12 @@ addon.webhook('room_message', /^\/shop\s*([a-z]+)?\s*([a-z]+)?/i, function  * ()
             stats[5] -= 3;
             // hp heals for 30
             stats[1] += 1;
-            mainArray[0] = stats;
-            dict.update(this.sender.name, mainArray);
+            getUser.main = stats;
+            updatePlayer(getUser, this, senderId)
             shop_process = false;
             return yield printMessage("Pepper bought and stored.", "green", this.roomClient);  
         }
-    }else if (this.match[2] == "bayleaf"){
+    }else if (matchString[2] == "bayleaf"){
         if (5 > playerGold) {
             shop_process = false;
             return yield printMessage("Not enough gold.", "green", this.roomClient);
@@ -135,20 +134,20 @@ addon.webhook('room_message', /^\/shop\s*([a-z]+)?\s*([a-z]+)?/i, function  * ()
             stats[5] -= 5;
             // hp heals for 30
             playerClass[1] += 1;
-            mainArray[2] = playerClass;
-            dict.update(this.sender.name, mainArray);
+            getUser.main = stats;
+            updatePlayer(getUser, this, senderId)
             shop_process = false;
             return yield printMessage("Bay leaf bought and stored.", "green", this.roomClient);  
         }
-    }else if (this.match[2] == "arenatoken"){
+    }else if (matchString[2] == "arenatoken"){
         if (20 > playerGold) {
             shop_process = false;
             return yield printMessage("Not enough gold.", "green", this.roomClient);
         }else{
             stats[5] -= 20;
             inventory.push("arenatoken");
-            mainArray[1] = inventory;
-            dict.update(this.sender.name, mainArray);
+            getUser.inventory = inventory;
+            updatePlayer(getUser, this, senderId)
             shop_process = false;
             return yield printMessage("Arenatoken bought and stored in inventory.", "green", this.roomClient); 
         }
