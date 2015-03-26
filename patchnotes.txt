@@ -1,5 +1,7 @@
 3/25/2015
 * Updated plugin to work with mongoDb
+* warrior mod will always update on the next encounter
+* TRIPLE EXP WEEK!!!
 
 3/23/2015
 * Random monster encounter no longer happens on weekends.

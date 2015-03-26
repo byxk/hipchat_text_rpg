@@ -104,7 +104,7 @@ addon.webhook('room_message', /^\/shop\s*([a-z]+)?\s*([a-z]+)?/i, function  * ()
             // hp heals for 30
             stats[0] += 30;
             getUser.main = stats;
-            updatePlayer(getUser, this, senderId)
+            getUser = updatePlayer(getUser, this, senderId)
             shop_process = false;
             return yield printMessage("HP potion bought and used automatically, +30hp.", "green", this.roomClient);
         }
@@ -161,8 +161,9 @@ addon.webhook('room_message', /^\/gm\s+(?:(\S+)\s+)*/i, function  * () {
     logToFile(this.match[1])
     var matchString = this.match;
     var senderId = this.sender.id;
-    var store = yield this.tenantStore.all();
+    var store = yield this.tenantStore.all(100000);
     logToFile("GM : " + JSON.stringify(store));
+    logToFile("ID : " + senderId);
     if (matchString[1] == "del"){
         delPlayer(this, matchString[2]);
         return yield printMessage(matchString[2] + " deleted.", "green", this.roomClient, "text") 
@@ -174,7 +175,8 @@ addon.webhook('room_message', /^\/gm\s+(?:(\S+)\s+)*/i, function  * () {
         return yield printMessage(matchString[2] + " updated.", "green", this.roomClient, "text") 
     }
      for (var i in store){
-        delPlayer(this, i);
+        delPlayer(this, i)
+        logToFile(i);
      }
   
     return yield printMessage("done", "green", this.roomClient, "text");
@@ -185,7 +187,7 @@ addon.webhook('room_message', /^\/target\s*([\S\s]*)$/i, function  * () {
     var senderName = this.sender.name
     var senderMentionName = this.sender.mention_name;
     var senderId = this.sender.id;
-    var store = yield this.tenantStore.all();
+    var store = yield this.tenantStore.all(100000);
     var getUser = yield this.tenantStore.get(senderId)
     getUser = initPlayer(getUser, this, senderId, senderName);
 
@@ -292,7 +294,7 @@ addon.webhook('room_message', /^[^\/].*|^\/farm/i, function  * () {
     var getUser = yield this.tenantStore.get(senderId)
     getUser = initPlayer(getUser, this, senderId, senderName);
 
-    var dataBase = yield this.tenantStore.all();
+    var dataBase = yield this.tenantStore.all(10000);
     if (!globalMonTimer){
         logToFile("In Timer setup");
         globalMonTimer = setInterval(function(roomC, tar) {
@@ -393,7 +395,7 @@ addon.webhook('room_message', /^[^\/].*|^\/farm/i, function  * () {
 				stats = getUser.main;
 				stats[0] = parseInt(stats[0]) - attackdmg[0];
 				getUser.main = stats;
-                updatePlayer(getUser, self, id);
+                getUser = updatePlayer(getUser, self, id);
                 trigger = false
             }
 			}, 60000, this.roomClient, senderId, getUser, this);
@@ -412,12 +414,10 @@ addon.webhook('room_message', /^\/stats\s*([\S]*)$/i, function  * () {
     var senderName = this.sender.name
     var senderMentionName = this.sender.mention_name;
     var senderId = this.sender.id;
-    var getUser = yield this.tenantStore.get(senderId)
-    getUser = initPlayer(getUser, this, senderId, senderName);
 
     // TODO: FIX AND UPDATE
     if (matchString[1] == "all"){
-        var allUsers = yield this.tenantStore.all();
+        var allUsers = yield this.tenantStore.all(10000);
         if (statsAll) {
             stats_process = false;
             return yield printMessage("It's too soon for stats all.", "red", this.roomClient, "text");
@@ -429,7 +429,6 @@ addon.webhook('room_message', /^\/stats\s*([\S]*)$/i, function  * () {
   
       
             var personName = i;
-            if (personName.length != 7) continue;
             logToFile("Looping thru " + personName);
             var tempPlayerArray = yield this.tenantStore.get(personName);
             var tempPlayerStats = tempPlayerArray.main;
@@ -452,6 +451,9 @@ addon.webhook('room_message', /^\/stats\s*([\S]*)$/i, function  * () {
         stats_process = false;
         return;
     }
+
+    var getUser = yield this.tenantStore.get(senderId)
+    getUser = initPlayer(getUser, this, senderId, senderName);
 
 	stats = getUser.main;
 	pclass = getUser.classInfo;
@@ -520,7 +522,7 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
     var senderName = this.sender.name
     var senderMentionName = this.sender.mention_name;
     var senderId = this.sender.id;
-    var store = yield this.tenantStore.all();
+    var store = yield this.tenantStore.all(10000);
     var getUser = yield this.tenantStore.get(senderId)
 
     getUser = initPlayer(getUser, this, senderId, senderName);
@@ -607,7 +609,7 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 					stats[1] = stats[1] + 1;
 				}
 				getUser.main = stats;
-                updatePlayer(getUser,this, senderId);
+                getUser = updatePlayer(getUser,this, senderId);
 				alreadyattacking = false;
                 trigger = false;
                 underattack = "";
@@ -632,7 +634,7 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 					delPlayer(this, senderId);
 				}else{
 					getUser.main = stats;
-                    updatePlayer(getUser, this, senderId);
+                    getUser = updatePlayer(getUser, this, senderId);
 				}
 				underattack = ""
                 trigger = false;
@@ -797,7 +799,7 @@ function initPlayer(playername, self, id, name) {
         profile: [name, "", "","","",""]
 
     }
-    self.tenantStore.set(id, playerObject);
+    updatePlayer(playerObject, self, id);
     return playerObject;
 }
 
@@ -805,7 +807,8 @@ function updatePlayer(playerObject, self, id){
     var self = self;
     logToFile("Updating db: " + playerObject.toString())
     self.tenantStore.set(id, playerObject);
-    return logToFile("Saved PlayerObject for: " + id);
+    logToFile("Saved PlayerObject for: " + id);
+    return playerObject;
 }
 function delPlayer(self, id){
     var self = self;
