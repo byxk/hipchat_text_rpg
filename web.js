@@ -175,7 +175,12 @@ addon.webhook('room_message', /^\/gm\s+(?:(\S+)\s+)*/i, function  * () {
         return yield printMessage(matchString[2] + " updated.", "green", this.roomClient, "text") 
     }
      for (var i in store){
-        delPlayer(this, i)
+        var getUser = yield this.tenantStore.get(i);
+        var main = getUser.main;
+        logToFile("Previous level: " + main[4].toString());
+        main[4] = calcLevel(parseInt(main[3]));
+        getUser.main = main;
+        updatePlayer(getUser, this, i);
         logToFile(i);
      }
   
@@ -318,10 +323,10 @@ addon.webhook('room_message', /^[^\/].*|^\/farm/i, function  * () {
                         logToFile("grass timed out");
                         gTarget.name = "";
                         if (gMonsterChance.length == 0){
-                        fillMonsterChanceArray();
-                        logToFile("Monster array is currently: " + gMonsterChance);
+                            fillMonsterChanceArray();
+                            logToFile("Monster array is currently: " + gMonsterChance);
                         }
-                    }, 30000, gTarget);
+                    }, 60000, gTarget);
                 }
             }
         }, 600000, this.roomClient, gTarget)
@@ -592,6 +597,7 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
                 stats[5] = parseInt(stats[5]) + parseInt(monsterGoldDrop);
                 var currentLevel = stats[4];
 				stats[4] = Math.floor(stats[3] / 20);
+                stats[4] = calcLevel(stats[3])
                 if (currentLevel < stats[4]){
                     yield printMessage("@" + senderMentionName + " has leveled up and is now level " + stats[4].toString() + ".", "yellow", this.roomClient, "text");
                 }
@@ -829,6 +835,13 @@ function getIdFromName(self, name, store){
     return -1
 }
 
+function calcLevel(currentExp){
+    // LEVEL SCALING
+    var level = Math.floor(Math.pow((parseInt(currentExp) / 20),(1/1.75)));
+    logToFile("New Level of player: " + level.toString());
+    return level;
+}
+
 function classCast(playername, roomClient, playerObject, id, self, store){
     var self = self;
     var senderId = id;
@@ -841,7 +854,7 @@ function classCast(playername, roomClient, playerObject, id, self, store){
     if (abilityCheck == 2){
         var chooseAbility = randFromRange(1,2);
         logToFile("Ability to use: " + chooseAbility.toString());
-        switch ("Cleric"){
+        switch (playerClass[0]){
             case "Cleric":
                 var healPower = parseInt(rollDice(parseInt(getUser.main[4]),6,0)[0]);
                 var target = playerClass[2];
@@ -855,6 +868,7 @@ function classCast(playername, roomClient, playerObject, id, self, store){
                 logToFile("GOT ID: " + targetId);
                 var targetMainArray = store[targetId];
                 logToFile("targerray: " + targetMainArray.toString());
+
                 var targetStats = targetMainArray.main;
                 targetStats[0] = parseInt(targetStats[0]) + healPower;
                 logToFile("targetStats after heal: " + targetStats.toString())
@@ -870,7 +884,6 @@ function classCast(playername, roomClient, playerObject, id, self, store){
                     logToFile("Magic Missiles added: " + stats.toString());
                     getUser.main = stats;
                     updatePlayer(getUser, self, senderId);
-                    logToFile("Magic Missiles added to MA: " + mainArray[0][2].toString());
                 }else if (chooseAbility == 2){
                     var magicHPreduce = randFromRange(1,getUser.main[4])
                     hp = hp - magicHPreduce;
