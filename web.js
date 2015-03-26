@@ -10,15 +10,12 @@ var typesOfMonsters = ["globin", "poring", "Ghostly Josh", "Headless Jimmy", "Sp
 "Chicken Jennie", "Soup Caledonia", "Icecream Imran", "Sandwich Patrick"];
 var foodDrops = ["an Apple", "a Potato", "Jimmy's sandwich", "Josh's bacon", "Jennie's fruit punch", "Rob's pills", "Patrick's JapaDog", "Leo's Monopoly", "Caledonia's Waterbottle", "Imran's Resume"];
 var classTypes = ["Cleric", "Mage", "Princess", "Warrior"];
-var mainShop = ["HealthPotion"]
-var monsterLevelDice = [20,30,40,50,60];
 var ack = require('ac-koa').require('hipchat');
 var pkg = require('./package.json');
 var app = ack(pkg, {store: 'MongoStore'});
 var MongoStore = require('ac-node').MongoStore;
 var addonStore = MongoStore(process.env[app.config.MONGO_ENV], 'dice');
 var Serializer = require("backpack-node").system.Serializer;
-var DiceData = require('./lib/Dice')
 var ser = new Serializer();
 var fs = require('fs');
 var app = ack(pkg);
