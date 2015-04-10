@@ -4,6 +4,8 @@
 //           classInfo: [name, rerolls, target, classMod] 
 //           profile: [playerName, "characterName", "","","",""]
 //           ]
+var rareItems = ["Shiny spatula"];
+var rareItemsEffects = ["Passively increase seasoning mod by 20%"];
 var typesOfMonsters = ["globin", "poring", "Ghostly Josh", "Headless Jimmy", "Spooky Jennie", 
 "Playboy Rob", "Mad Patrick", "Crazy Leo", "Sad Caledonia", 
 "Master Imran", "Giant Josh", "Grapefruit Jimmy", "Fried Rob", "Potato Leo",
@@ -32,13 +34,20 @@ var monsterType = "";
 var monsterfoodDrop = "";
 var playerDiceType;
 var mainTimerDuration = 300000;
-var arenaStartLobby = false;
-var arenaPlayers = new Array();
 var gainHP;
 var increaseMonsterChance = new Array();
 var gMonsterChance = new Array();
 var diceToRoll = 0;
-var arenaStarted = {status: false};
+var dualObj = {
+    status: false,
+    playerOne: "",
+    playerOneRoll: 0,
+    playerTwoRoll: 0,
+    playerTwo: "",
+    playerBetting: [],
+    playerBet: [],
+    totalBets: 0
+};
 var levelofMob = 1;
 var prayer_process = false;
 var inventory_process = false;
@@ -98,7 +107,7 @@ addon.webhook('room_message', /^\/shop\s*([a-z]+)?\s*([a-z]+)?\s*([0-9]+)?/i, fu
     shop_process = true;
     if (matchString[1] != "buy" || !matchString[2] ){
         printMessage("Buy and use an item automatically with /shop buy itemname.", "green", this.roomClient);
-        printMessage("HealthPotion - 15g | Pepper - 3g | Bayleaf - 5g | Arenatoken - 20g", "green", this.roomClient);
+        printMessage("HealthPotion - 15g | Pepper - 3g | Bayleaf - 5g | Dualtoken - 20g", "green", this.roomClient);
         shop_process = false;
         return;
     }
@@ -154,17 +163,17 @@ addon.webhook('room_message', /^\/shop\s*([a-z]+)?\s*([a-z]+)?\s*([0-9]+)?/i, fu
             shop_process = false;
             return yield printMessage("Bay leaf bought and stored.", "green", this.roomClient);  
         }
-    }else if (matchString[2] == "arenatoken"){
+    }else if (matchString[2] == "dualtoken"){
         if (20 > playerGold) {
             shop_process = false;
             return yield printMessage("Not enough gold.", "green", this.roomClient);
         }else{
             stats[5] -= 20;
-            inventory.push("arenatoken");
+            inventory.push("dualtoken");
             getUser.inventory = inventory;
             updatePlayer(getUser, this, senderId)
             shop_process = false;
-            return yield printMessage("Arenatoken bought and stored in inventory.", "green", this.roomClient); 
+            return yield printMessage("Dualtoken bought and stored in inventory.", "green", this.roomClient); 
         }
 
     }else{
@@ -268,47 +277,13 @@ addon.webhook('room_message', /^\/arena\s*([a-z]+)?/i, function  * () {
     var getUser = yield this.tenantStore.get(senderId)
     getUser = initPlayer(getUser, this, senderId, senderName);
     var playerInventory = getUser.inventory
-    if (isInArray(senderName, arenaPlayers)){
-        return yield printMessage("You already joined the arena!", "yellow", this.roomClient, "text");
-    }
-
-    if (matchString[1] == "join" && arenaStartLobby && !isInArray(senderName, arenaPlayers)){
-        arenaPlayers.push(senderName);
-        
-        yield printMessage("@" + senderMentionName + " has joined the arena! Need " + (3- arenaPlayers.length).toString() + " more players!", "yellow", this.roomClient, "text");
-        if (arenaPlayers.length == 3){
-            arenaPlayers = new Array();
-            arenaStartLobby = false;
-            yield printMessage("Enough players have joined! Starting arena. For the next minute, all message will trigger monster encounters!", "yellow", this.roomClient, "text");
-            arenaStarted.status = true;
-            logToFile("Starting arena");
-            var arenaTimer = setTimeout(function (start, room) {
-                    logToFile("ending arena");
-                    arenaStarted.status = false;
-                    printMessage("Arena has ended.", "green", room, "text");
-                    clearTimeout(monsterTimer)
-                }, 20000, arenaStarted, this.roomClient)
-
-        }
-    }else if (matchString[1] == "start" && isInArray("arenatoken", playerInventory) && !arenaStartLobby){
-        playerInventory.splice(playerInventory.indexOf("arenatoken"), 1);
-        getUser.inventory = playerInventory;
-        updatePlayer(getUser, this, senderId);
-        yield printMessage("@" + senderMentionName + " has started an arena! Requires 3 other players to start. Type '/arena join' to help start it!", "yellow", this.roomClient, "text");
-        arenaStartLobby = true;
-        return;
-    }else{
-        return yield printMessage("Must aquire an arenatoken, and start arena with '/arena start'", "yellow", this.roomClient, "text");
-    }
-    if (matchString[1] == "join" && !arenaStartLobby){
-        return yield printMessage("No arena has been started", "yellow", this.roomClient, "text");
-    }
+   
     
 });
 addon.webhook('room_message', /^[^\/].*|^\/farm|^\/ping|^\/profile\s*([a-z]+)?\s*([a-z]+)?/i, function  * () {
     if (this.match[0] == "ping"){
-        var ping = randFromRange(45,56);
-        yield printMessage("@" +this.sender.mention_name+"'s pong - " + ping.toString() + "ms", "yellow", this.roomClient, "text");
+        var timeDiff = Date.now() -Date.parse(this.message.date);
+        yield printMessage("@" +this.sender.mention_name+"'s pong - " + timeDiff.toString() + "ms", "yellow", this.roomClient, "text");
         return;
     }
     if (alreadyattacking) {
@@ -332,7 +307,7 @@ addon.webhook('room_message', /^[^\/].*|^\/farm|^\/ping|^\/profile\s*([a-z]+)?\s
             logToFile("Current hour: " + today);
             logToFile("Current day: " + day);
             // time on vm
-            if (today <= 24 && today >= 17 && !alreadyattacking && (day != 0) && (day != 7) && (underattack == "") && (arenaStarted.status == false)) {
+            if (today <= 24 && today >= 17 && !alreadyattacking && (day != 0) && (day != 7) && (underattack == "")) {
 
                 var rand = Math.floor(Math.random() * gMonsterChance.length)
                 logToFile("Rand is currently: " + rand.toString());
@@ -385,8 +360,7 @@ addon.webhook('room_message', /^[^\/].*|^\/farm|^\/ping|^\/profile\s*([a-z]+)?\s
     }
 	var doweatk = randFromRange(increaseMonsterChance[senderName], 18);
     logToFile("Monster encounter rolls: " + doweatk.toString());
-    logToFile("Arena started?: " + arenaStarted.status);
-	if ((parseInt(doweatk) == 17 || trigger || arenaStarted.status == true) && !alreadyattacking) {
+	if ((parseInt(doweatk) == 17 || trigger) && !alreadyattacking) {
 
 		alreadyattacking = true;
 		underattack = senderName;
@@ -536,7 +510,7 @@ addon.webhook('room_message', /^[^\/].*|^\/farm|^\/ping|^\/profile\s*([a-z]+)?\s
                 + " " + monsterType + " is going after you! Roll a 1d20 and defeat it. You must beat a " + hp +". Rolling for attack damage...","red", this.roomClient,"text");
             logToFile("Attack Damage in first enc: " + attackdmg.toString())
             yield printMessage(formatRoll(Math.ceil(levelofMob/2), 8, 0, attackdmg, monsterType), "red", this.roomClient, "html");
-    		//yield printMessage(formatRoll(1, 8, 0, attackdmg, monsterType), "red", this.roomClient, "html");
+
     		logToFile("Starting to wait for player " + underattack);
     		monsterTimer = setTimeout(function (room, id, playerObject, self) {
                 if (underattack != ""){
@@ -719,10 +693,18 @@ addon.webhook('room_message', /^\/stats\s*([\S]*)$/i, function  * () {
 	pclass = getUser.classInfo;
     profile = getUser.profile;
 
-    var tableString = "<table><tr><th>"+senderMentionName + ":</th><th>Class</th><th>HP</th><th>Level</th><th>EXP</th><th>Pepper</th><th>Seasoning</th><th>Gold</th></tr>" +
-    	"<tr><td>" +profile[1] +"</td><td>" +pclass[0]+"</td><td>"+stats[0].toString()+"</td><td>"+stats[4]+"</td><td>"+stats[3]+"</td><td>"+stats[1]+"</td><td>"+stats[2].toString()+"(+" +pclass[3].toString()+")</td><td>"+stats[5].toString()+"</td></tr></table>";
+    if (senderName == "Josh Elsasser"){
+        var tableString = "<table><tr><th>"+senderMentionName + ":</th><th>Hunker</th><th>Hunker</th><th>Hunker</th><th>Hunker</th><th>Hunker</th><th>Hunker</th><th>Hunker</th></tr>" +
+            "<tr><td>" +profile[1] +"</td><td>" +pclass[0]+"</td><td>"+stats[0].toString()+"</td><td>"+stats[4]+"</td><td>"+stats[3]+"</td><td>"+stats[1]+"</td><td>"+stats[2].toString()+"(+" +pclass[3].toString()+")</td><td>"+stats[5].toString()+"</td></tr></table>";
 
-    yield printMessage(tableString, "green", this.roomClient, "html");
+        yield printMessage(tableString, "green", this.roomClient, "html");
+
+    }else{
+        var tableString = "<table><tr><th>"+senderMentionName + ":</th><th>Class</th><th>HP</th><th>Level</th><th>EXP</th><th>Pepper</th><th>Seasoning</th><th>Gold</th></tr>" +
+            "<tr><td>" +profile[1] +"</td><td>" +pclass[0]+"</td><td>"+stats[0].toString()+"</td><td>"+stats[4]+"</td><td>"+stats[3]+"</td><td>"+stats[1]+"</td><td>"+stats[2].toString()+"(+" +pclass[3].toString()+")</td><td>"+stats[5].toString()+"</td></tr></table>";
+
+        yield printMessage(tableString, "green", this.roomClient, "html");
+    }
     //printMessage(tableString, "green", this.roomClient, "html");
     stats_process = false;
 // 	yield this.roomClient.sendNotification("@" + this.sender.mention_name + "'s stats | class: " + pclass[0] + " | hp: " + stats[0].toString() + " | Level: " + stats[4] + " | EXP: " + stats[3] + " | pepper: " + stats[1].toString() + " | seasoning modifier: " + stats[2].toString(), {
@@ -768,14 +750,24 @@ addon.webhook('room_message', /^\/pepper\s*([0-9]+)?/i, function  * () {
     }
     if (isNaN(amountOfPepperToUse)) amountOfPepperToUse = 1;
 	if (amountOfPepperToUse > stats[1]) {
-		yield this.roomClient.sendNotification(nickName + " does not have enough pepper to season.");
+        if (senderName == "Josh Elsasser"){
+            yield this.roomClient.sendNotification(nickName + " does not have enough hunkering to hunker.");
+
+        }else{
+    		yield this.roomClient.sendNotification(nickName + " does not have enough pepper to season.");
+        }
 	} else {
 		var prayermod = rollDice(amountOfPepperToUse, 5, 0)[0]
 		stats[1] = stats[1] - amountOfPepperToUse;
 		stats[2] = parseInt(stats[2] + prayermod);
         getUser.main = stats;
         updatePlayer(getUser, this, senderId);
-        yield this.roomClient.sendNotification("The pan sizzles as " + nickName + " adds in " + prayermod.toString() + " seasoning.");
+        if (senderName == "Josh Elsasser"){
+            yield this.roomClient.sendNotification("The pan hunkerzles as " + nickName + " hunkers in " + prayermod.toString() + " hunkering.");
+
+        }else{
+            yield this.roomClient.sendNotification("The pan sizzles as " + nickName + " adds in " + prayermod.toString() + " seasoning.");
+        }
 	}
 
 	prayer_process = false;
@@ -846,7 +838,12 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
                 clearTimeout(monsterBossTimer);
                 monsterBossMethod();
             }else {
+            if (senderName == "Josh Elsasser"){
+                yield printMessage(senderName + " hunkers " + total.toString() + " to the hunkered boss roll. Boss has " + leftOver.toString() + " hunker left!", "yellow", this.roomClient, "text");
+
+            }else{
                 yield printMessage(senderName + " added " + total.toString() + " to the monster boss roll. Boss has " + leftOver.toString() + " hp left!", "yellow", this.roomClient, "text");
+            }
                 
             }
             alreadyrolling = false;
@@ -863,6 +860,12 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
                 getUser = yield this.tenantStore.get(senderId)
             }
 			var seasonMod = getUser.main[2];
+            var inventory = getUser.inventory;
+            var itemMod = 0;
+            if (isInArray("Shiny spatula", inventory)){
+                itemMod = Math.ceil(seasonMod * .20);
+            }
+            seasonMod += itemMod;
 			numofdice = 1;
 			numofsides = 20;
             var diceRoll = rollDice(parseInt(numofdice),parseInt(numofsides), parseInt(seasonMod));
@@ -879,7 +882,12 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 			total = diceResult[0];
 
 		}
-		yield printMessage(totalString, "purple", this.roomClient, "text");
+        if (senderName == "Josh Elsasser"){
+        yield printMessage(totalString.replace("rolled", "hunkered"), "purple", this.roomClient, "text");
+
+        }else{
+        yield printMessage(totalString, "purple", this.roomClient, "text");
+        }
 
 
 		if (((senderName == underattack) && (numofdice == 1) && (numofsides == 20 ))) {
@@ -895,10 +903,18 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
                 }
                 var nameToUse = getNameToUse(getUser.profile);
                 logToFile("GainHP in roll: " + gainHP.toString());
-				yield this.roomClient.sendNotification('<b>' + nameToUse + '</b> fried the ' + monsterType + ' and cooked up ' + monsterfoodDrop + ' that restores ' + Math.floor(gainHP) + " hp along with " + amountofExp + " exp and " + monsterGoldDrop.toString() + " gold!", {
-					color : 'purple',
-					format : 'html'
-				});
+                if (senderName == "Josh Elsasser"){
+                yield this.roomClient.sendNotification('<b>' + nameToUse + '</b> hunkered the ' + monsterType + ' and hunkered up ' + monsterfoodDrop + ' that hunkers ' + Math.floor(gainHP) + " hp along with " + amountofExp + " hunkerExp and " + monsterGoldDrop.toString() + " hunker!", {
+                    color : 'purple',
+                    format : 'html'
+                });
+                }else{
+                yield this.roomClient.sendNotification('<b>' + nameToUse + '</b> fried the ' + monsterType + ' and cooked up ' + monsterfoodDrop + ' that restores ' + Math.floor(gainHP) + " hp along with " + amountofExp + " exp and " + monsterGoldDrop.toString() + " gold!", {
+                    color : 'purple',
+                    format : 'html'
+                });                
+                }
+
 				stats = getUser.main;
 				stats[3] = stats[3] + amountofExp;
                 stats[5] = parseInt(stats[5]) + parseInt(monsterGoldDrop);
@@ -922,6 +938,20 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 					});
 					stats[1] = stats[1] + 1;
 				}
+
+                // item gain
+                var getItem = randFromRange(1,10);
+                logToFile("getItem value: " + getItem.toString());
+                if (getItem == 1){
+                    var itemIndex = Math.floor(Math.random() * rareItems.length)
+                    var itemToGet = rareItems[itemIndex];
+                    var itemDescrip = rareItemsEffects[itemIndex];
+                    if (!isInArray(itemToGet, getUser.inventory)){
+                        var message = "@" + senderMentionName + " picked up a " + itemToGet +"! Effect: " + itemDescrip
+                        yield printMessage(message, "gray", this.roomClient, "text");
+                        getUser.inventory.push(itemToGet);
+                    }
+                }
 				getUser.main = stats;
                 getUser = updatePlayer(getUser,this, senderId);
 				alreadyattacking = false;
