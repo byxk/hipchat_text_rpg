@@ -38,7 +38,23 @@ var gainHP;
 var increaseMonsterChance = new Array();
 var gMonsterChance = new Array();
 var diceToRoll = 0;
-var dualObj = {
+var pollObj = {
+    started: false,
+    question: "",
+    options: [],
+    players: [],
+    votes: [],
+    starter: ""
+}
+var topScoresAll = {
+    expPlayers: ["","",""],
+    expScores: [0,0,0],
+    goldPlayers: ["","",""],
+    goldScores: [0,0,0],
+    pepperPlayers: ["","",""],
+    pepperScores: [0,0,0]
+}
+var duelObj = {
     status: false,
     playerOne: "",
     playerOneRoll: 0,
@@ -46,7 +62,11 @@ var dualObj = {
     playerTwo: "",
     playerBetting: [],
     playerBet: [],
-    totalBets: 0
+    totalBets: 0,
+    bettingPhase: false,
+    attackingphase: false,
+    duelBetTimer: 0,
+    duelRollTimer: 0
 };
 var levelofMob = 1;
 var prayer_process = false;
@@ -107,7 +127,7 @@ addon.webhook('room_message', /^\/shop\s*([a-z]+)?\s*([a-z]+)?\s*([0-9]+)?/i, fu
     shop_process = true;
     if (matchString[1] != "buy" || !matchString[2] ){
         printMessage("Buy and use an item automatically with /shop buy itemname.", "green", this.roomClient);
-        printMessage("HealthPotion - 15g | Pepper - 3g | Bayleaf - 5g | Dualtoken - 20g", "green", this.roomClient);
+        printMessage("HealthPotion - 15g | Pepper - 3g | Bayleaf - 5g | Dueltoken - 20g", "green", this.roomClient);
         shop_process = false;
         return;
     }
@@ -148,6 +168,7 @@ addon.webhook('room_message', /^\/shop\s*([a-z]+)?\s*([a-z]+)?\s*([0-9]+)?/i, fu
             getUser.main = stats;
             updatePlayer(getUser, this, senderId)
             shop_process = false;
+            pepperTopScore(senderName, stats[1], this.roomClient);
             return yield printMessage(amountOfPeppers + " pepper(s) bought and stored.", "green", this.roomClient);  
         }
     }else if (matchString[2] == "bayleaf"){
@@ -200,7 +221,7 @@ addon.webhook('room_message', /^\/gm\s+(?:(\S+)\s+)*/i, function  * () {
         var obj = fs.readFileSync('data.json', 'utf8')
         logToFile(obj.toString())
         var jsonObj = JSON.parse(obj);
-        logToFile(jsonObj.toString())
+        logToFile(jsonObj.toString());
         for (var i in jsonObj){
             logToFile("Loading playerObj from file: " + i.toString());
             logToFile("Loading playerObjData from file: " + jsonObj[i].toString());
@@ -269,21 +290,164 @@ addon.webhook('room_message', /^\/class\s*([a-z]+)?/i, function  * () {
 	}
 
 });
-addon.webhook('room_message', /^\/arena\s*([a-z]+)?/i, function  * () {
+addon.webhook('room_message', /^\/duel*\s*([a-z]+)\s*([\S\s]*)$/i, function  * () {
+    return;
+    if (!duelObj.status && alreadyattacking){
+        return;
+    }
+    // cmds for [1] = 
+    // "start" - start a duel
+    // "bet" - place down a bet on a current duel
     var matchString = this.match;
+    var store = yield this.tenantStore.all(100000);
     var senderName = this.sender.name
     var senderMentionName = this.sender.mention_name;
     var senderId = this.sender.id;
     var getUser = yield this.tenantStore.get(senderId)
     getUser = initPlayer(getUser, this, senderId, senderName);
     var playerInventory = getUser.inventory
+    if (matchString[1] == "bet"){
+        if (!duelObj.bettingPhase){
+            return yield printMessage("Not in betting phase.", "yellow", this.roomClient, "text");
+        }else if (senderName == duelObj.playerOne || senderName == duelObj.playerTwo) {
+            return yield printMessage("Can't bet on yourself!", "yellow", this.roomClient, "text");
+        } else {
+            if (matchString[2] == ""){
+                return yield printMessage("Need to specify player to bet on.", "yellow", this.roomClient, "text");
+            }
+            // duel in progress
+            return;
+        }
+    }else if (matchString[1] == "start"){
+        if (duelObj.status){
+            return yield printMessage("Another duel is currently in progress", "yellow", this.roomClient, "text");
+        }else{
+            if (matchString[2] == ""){
+                return yield printMessage("Need to specify player to duel", "yellow", this.roomClient, "text");
+            } else if (getIdFromName(this,matchString[2],store) == -1){
+                return yield printMessage("Player doesn't exist.", "yellow", this.roomClient, "text");
+            } else if (senderName == matchString[2]){
+                return yield printMessage("Can't challenge yourself!", "yellow", this.roomClient, "text");
+            
+            } else {
+                duelObj.status = true;
+                alreadyattacking = true;
+                duelObj.bettingPhase = true;
+                duelObj.playerOne = senderName;
+                duelObj.playerTwo = matchString[2];
+                // TODO: PlayerTwo must accept
+                yield printMessage("Everyone has 10 seconds to place a bet.", "green", this.roomClient, "text")
+                var bettingFunction = function (room, rollingFunction){
+                    duelObj.bettingPhase = false;
+                    duelObj.attackingphase = true;
+                    duelObj.duelRollTimer = setTimeout(rollingFunction, 10000, room);
+                    room.sendNotification("Duelers, roll!");
+                }
+
+                var rollingFunction = function(room){
+                    if (duelObj.playerOneRoll == 0 || duelObj.playerTwoRoll == 0 ){
+                        room.sendNotification("No one rolled, cancelling duel.");
+                        alreadyattacking = false;
+                        duelObj = {
+                            status: false,
+                            playerOne: "",
+                            playerOneRoll: 0,
+                            playerTwoRoll: 0,
+                            playerTwo: "",
+                            playerBetting: [],
+                            playerBet: [],
+                            totalBets: 0,
+                            bettingPhase: false,
+                            attackingphase: false,
+                            duelBetTimer: 0,
+                            duelRollTimer: 0
+                        };
+                    }else{
+                        room.sendNotification("End of duel.");
+                        alreadyattacking = false;
+                        duelObj = {
+                            status: false,
+                            playerOne: "",
+                            playerOneRoll: 0,
+                            playerTwoRoll: 0,
+                            playerTwo: "",
+                            playerBetting: [],
+                            playerBet: [],
+                            totalBets: 0,
+                            bettingPhase: false,
+                            attackingphase: false,
+                            duelBetTimer: 0,
+                            duelRollTimer: 0
+                            };
+                    }
+                }
+                duelObj.duelBetTimer = setTimeout(bettingFunction, 10000, this.roomClient, rollingFunction);
+            return;
+
+            }
+        }
    
+    }else{
+        return yield printMessage("/duel start|bet playername", "yellow", this.roomClient, "text");
+    }
     
 });
-addon.webhook('room_message', /^[^\/].*|^\/farm|^\/ping|^\/profile\s*([a-z]+)?\s*([a-z]+)?/i, function  * () {
+addon.webhook('room_message', /^[^\/].*|^\/farm|^\/ping|^\/profile\s*([a-z]+)?\s*([a-z]+)?|^\/poll*\s*([a-z]+)\s*([\S\s]*)$/i, function  * () {
+    var voteOptionMsg = "";
+    if (this.match[0].startsWith("/poll") && this.match[3] == "start" && this.match[4]){
+        pollObj = {
+            started: false,
+            question: this.match[4],
+            options: [],
+            players: [],
+            votes: [],
+            starter: this.sender.name
+        }
+        yield printMessage("Question added, type /poll add {option} to add an entry.", "yellow", this.roomClient, "text");
+        return;
+    }else if (this.match[0].startsWith("/poll") && this.match[3] == "add" && this.match[4] != "" && pollObj.question != "" && pollObj.starter == this.sender.name){
+        if (isInArray(this.match[4], pollObj.options)){
+            return;
+        }
+        pollObj.started = true;
+        pollObj.options.push(this.match[4]);
+        pollObj.votes.push(0);
+        yield printMessage("Entry added. Keep typing /poll add {option} to add more, or /poll vote {number} to vote for 1", "yellow", this.roomClient, "text");
+        return;
+    } else if (this.match[0].startsWith("/poll") && this.match[3] == "vote" && this.match[4] != "" && pollObj.started){
+        logToFile(isNumeric(this.match[4]));
+        if (isInArray(this.sender.name, pollObj.players) || !(isNumeric(this.match[4]))){
+            logToFile("isInPlayers and numeric");
+            return;
+        }
+        var number = parseInt(this.match[4]);
+        if (number <1 || number > pollObj.options.length){
+            logToFile("toogreaterormsallers");
+            return;
+        }
+        pollObj.players.push(this.sender.name);
+        pollObj.votes[number-1] += 1;
+        yield printMessage("Vote Added.", "yellow", this.roomClient, "text");
+
+        return;
+    } else if (this.match[0].startsWith("/poll") && this.match[3] == "status" && pollObj.started){
+        yield printMessage("<b>Current Question:</b> " + pollObj.question + "\n", "yellow", this.roomClient, "html");
+        for (var i = 0; i<pollObj.options.length; i++){
+            logToFile(pollObj.options[i]);
+            voteOptionMsg += (i+1).toString() + ") " + pollObj.options[i] + ": " + pollObj.votes[i] + " votes.\n".toString();
+        }
+        logToFile(voteOptionMsg);
+        yield printMessage("Available options: \n", "yellow", this.roomClient, "text");
+        yield printMessage(voteOptionMsg,"yellow", this.roomClient, "text");
+        return;
+    }
     if (this.match[0] == "ping"){
         var timeDiff = Date.now() -Date.parse(this.message.date);
         yield printMessage("@" +this.sender.mention_name+"'s pong - " + timeDiff.toString() + "ms", "yellow", this.roomClient, "text");
+        return;
+    }
+    if (this.match[0] == "ready"){
+        yield printMessage("@" +this.sender.mention_name+" is ready.", "yellow", this.roomClient, "text");
         return;
     }
     if (alreadyattacking) {
@@ -394,7 +558,7 @@ addon.webhook('room_message', /^[^\/].*|^\/farm|^\/ping|^\/profile\s*([a-z]+)?\s
             monsterGoldDrop = randFromRange(levelofMob/2,levelofMob) * 2;
             monsterType = typesOfMonsters[Math.floor(Math.random() * typesOfMonsters.length)];
             monsterfoodDrop = foodDrops[Math.floor(Math.random() * foodDrops.length)];
-            yield printMessage("A low rumbling in the distance is heard...and @" + senderMentionName +" sees a giant " + monsterType +", level " + levelofMob.toString() + ". The party has a minute to roll, and must beat " + hp + ", @here. Rolling for attack damage.", "red", this.roomClient, "text");
+            yield printMessage("A low rumbling in the distance is heard...and @" + senderMentionName +" sees a giant " + monsterType +", level " + levelofMob.toString() + ". The party has 2 minutes to roll, and must beat " + hp + ", @here. Rolling for attack damage.", "red", this.roomClient, "text");
             yield printMessage(formatRoll(Math.ceil(levelofMob/3), 8, 0, attackdmg, monsterType), "red", this.roomClient, "text");
             bossMonsterParty.hp = hp;
             bossMonsterParty.attackdmg = attackdmg;
@@ -582,7 +746,11 @@ addon.webhook('room_message', /^\/stats\s*([\S]*)$/i, function  * () {
             }, 60000, this.roomClient);
         stats_process = false;
         return;
-    }else if (matchString[1] == "top"){
+    }else if (matchString[1] == "top"){ 
+       if (statsAll) {
+            stats_process = false;
+            return yield printMessage("It's too soon for stats all.", "red", this.roomClient, "text");
+        }
         var expArray = {};
         var finalExpArray = {};
         var finalPepperArray = {};
@@ -650,7 +818,7 @@ addon.webhook('room_message', /^\/stats\s*([\S]*)$/i, function  * () {
         // print messages
         var messageToSend = "";
         messageToSend += "################## The Newbies Leaderboard ##################\n";
-        messageToSend += "~~~~~ Top 3 EXP ~~~~~\n";
+        messageToSend += "~~~~~ Current Top 3 EXP ~~~~~\n";
         yield printMessage(messageToSend, "purple", this.roomClient, "text");
         var expMessage = "";
 
@@ -659,14 +827,14 @@ addon.webhook('room_message', /^\/stats\s*([\S]*)$/i, function  * () {
         }
 
         yield printMessage(expMessage, "gray", this.roomClient, "text");
-        yield printMessage("~~~~~ Top 3 Peppers ~~~~~", "purple", this.roomClient, "text");
+        yield printMessage("~~~~~ Current Top 3 Peppers ~~~~~", "purple", this.roomClient, "text");
 
         var pepMessage = "";
         for (var i in finalPepperArray){
             pepMessage += "[ " + i + " ] ~~~~~ " + finalPepperArray[i] + "\n";
         }
         yield printMessage(pepMessage, "gray", this.roomClient, "text");
-        yield printMessage("~~~~~ Top 3 Gold ~~~~~", "purple", this.roomClient, "text");
+        yield printMessage("~~~~~ Current Top 3 Gold ~~~~~", "purple", this.roomClient, "text");
 
         var goldMessage = "";
         for (var i in finalGoldArray){
@@ -680,6 +848,210 @@ addon.webhook('room_message', /^\/stats\s*([\S]*)$/i, function  * () {
                 logToFile("stats all is ready");
                 stats_process = false;
                 statsAll = false;
+            }, 60000, this.roomClient);
+
+        stats_process = false;
+        return
+     }else if (matchString[1] == "alltime"){
+       if (statsAll) {
+            stats_process = false;
+            return yield printMessage("It's too soon for stats all.", "red", this.roomClient, "text");
+        }
+        var expArray = {};
+        var finalExpArray = {};
+        var finalPepperArray = {};
+        var finalGoldArray = {};
+        // TODO: load the all time stats from file
+
+        var fs = require('fs');
+        var obj = fs.readFileSync('alltime.json', 'utf8')
+        logToFile(obj.toString())
+        if (obj.toString() != ""){
+            topScoresAll = JSON.parse(obj);
+            logToFile(topScoresAll.toString());
+        }
+
+        // reset exp array to exp
+        for (var i in allUsers){
+            expArray[allUsers[i].profile[0]] = allUsers[i].main[3];
+        }
+        // top 3 exps
+        for (var numOfTimes = 0; numOfTimes<3; numOfTimes++){
+
+            var max = Math.max.apply(null,
+                            Object.keys(expArray).map(function(e) {
+                                    return expArray[e];
+                                    }));
+            for (var name in expArray){
+                if (expArray[name] == max){
+                    finalExpArray[name] = expArray[name];
+                    delete expArray[name]
+                    break;
+                }
+            }
+
+        }
+        // reset expArray to peppers
+        expArray = {};
+        for (var i in allUsers){
+            expArray[allUsers[i].profile[0]] = allUsers[i].main[1];
+        }
+        for (var numOfTimes = 0; numOfTimes<3; numOfTimes++){
+
+            var max = Math.max.apply(null,
+                            Object.keys(expArray).map(function(e) {
+                                    return expArray[e];
+                                    }));
+            for (var name in expArray){
+                if (expArray[name] == max){
+                    finalPepperArray[name] = expArray[name];
+                    delete expArray[name]
+                    break;
+                }
+            }
+
+        }
+        // reset expArray to gold
+        expArray = {};
+        for (var i in allUsers){
+            expArray[allUsers[i].profile[0]] = allUsers[i].main[5];
+        }
+        for (var numOfTimes = 0; numOfTimes<3; numOfTimes++){
+
+            var max = Math.max.apply(null,
+                            Object.keys(expArray).map(function(e) {
+                                    return expArray[e];
+                                    }));
+            for (var name in expArray){
+                if (expArray[name] == max){
+                    finalGoldArray[name] = expArray[name];
+                    delete expArray[name]
+                    break;
+                }
+            }
+
+        }
+        /**
+        var topScoresAll = {
+            expPlayers = ["","",""],
+            expScores = [0,0,0],
+            goldPlayers = ["","",""],
+            goldScores = [0,0,0],
+            pepperPlayers = ["","",""],
+            pepperScores =[0,0,0]
+        }
+        **/
+        // calc if the current top 3 is higher than the alltime 3;       
+        //exp, requires at least 3 in array
+        for (var i in finalExpArray){
+            // #1
+            if (finalExpArray[i] > topScoresAll.expScores[0]){
+                topScoresAll.expPlayers[0] = i;
+                topScoresAll.expScores[0] = finalExpArray[i];
+                continue;
+
+            }else if(finalExpArray[i] > topScoresAll.expScores[1] && !isInArray(i, topScoresAll.expPlayers)){
+            // #2
+                topScoresAll.expPlayers[1] = i;
+                topScoresAll.expScores[1] = finalExpArray[i];
+                continue;
+                
+            }else if(finalExpArray[i] > topScoresAll.expScores[2] && !isInArray(i, topScoresAll.expPlayers)){
+            // #3
+                topScoresAll.expPlayers[2] = i;
+                topScoresAll.expScores[2] = finalExpArray[i];
+                continue;
+            }
+
+        }
+
+        //peppers
+        for (var i in finalPepperArray){
+            // #1
+            if (finalPepperArray[i] > topScoresAll.pepperScores[0]){
+                topScoresAll.pepperPlayers[0] = i;
+                topScoresAll.pepperScores[0] = finalPepperArray[i];
+                continue;
+
+
+            }else if(finalPepperArray[i] > topScoresAll.pepperScores[1] && !isInArray(i, topScoresAll.pepperPlayers)){
+            // #2
+                topScoresAll.pepperPlayers[1] = i;
+                topScoresAll.pepperScores[1] = finalPepperArray[i];
+                continue;
+                
+            }else if(finalPepperArray[i] > topScoresAll.pepperScores[2]  && !isInArray(i, topScoresAll.pepperPlayers)){
+            // #3
+                topScoresAll.pepperPlayers[2] = i;
+                topScoresAll.pepperScores[2] = finalPepperArray[i];
+                continue;
+            }
+
+        }
+
+        // gold 
+        for (var i in finalGoldArray){
+            // #1
+            if (finalGoldArray[i] > topScoresAll.goldScores[0]){
+                topScoresAll.goldPlayers[0] = i;
+                topScoresAll.goldScores[0] = finalGoldArray[i];
+                continue;
+
+            }else if(finalGoldArray[i] > topScoresAll.goldScores[1]  && !isInArray(i, topScoresAll.goldPlayers)){
+            // #2
+                topScoresAll.goldPlayers[1] = i;
+                topScoresAll.goldScores[1] = finalGoldArray[i];
+                continue;
+                
+            }else if(finalGoldArray[i] > topScoresAll.goldScores[2] && !isInArray(i, topScoresAll.goldPlayers)){
+            // #3
+                topScoresAll.goldPlayers[2] = i;
+                topScoresAll.goldScores[2] = finalGoldArray[i];
+                continue;
+            }
+
+        }
+
+        // save to file
+
+
+        // print messages
+        logToFile(JSON.stringify(topScoresAll));
+        var messageToSend = "";
+        messageToSend += "################## The Newbies Leaderboard ##################\n";
+        messageToSend += "~~~~~ Top 3 EXP ~~~~~\n";
+        yield printMessage(messageToSend, "purple", this.roomClient, "text");
+        var expMessage = "";
+
+        for (var i in topScoresAll.expScores){
+            expMessage += "[ " + topScoresAll.expPlayers[i] + " ] ~~~~~ " + topScoresAll.expScores[i] + "\n";
+        }
+
+        yield printMessage(expMessage, "gray", this.roomClient, "text");
+        yield printMessage("~~~~~ Top 3 Peppers ~~~~~", "purple", this.roomClient, "text");
+
+        var pepMessage = "";
+        for (var i in topScoresAll.pepperScores){
+            pepMessage += "[ " + topScoresAll.pepperPlayers[i] + " ] ~~~~~ " + topScoresAll.pepperScores[i] + "\n";
+        }
+        yield printMessage(pepMessage, "gray", this.roomClient, "text");
+        yield printMessage("~~~~~ Top 3 Gold ~~~~~", "purple", this.roomClient, "text");
+
+        var goldMessage = "";
+        for (var i in topScoresAll.goldScores){
+            goldMessage += "[ " + topScoresAll.goldPlayers[i] + " ] ~~~~~ " + topScoresAll.goldScores[i] + "\n";
+        }
+        yield printMessage(goldMessage, "gray", this.roomClient, "text");
+
+        var fs = require('fs');
+        fs.writeFileSync("alltime.json", JSON.stringify(topScoresAll), 'utf8');
+
+
+        statsTimer = setTimeout(function (room) {
+                logToFile("stats all is ready");
+                stats_process = false;
+                statsAll = false;
+
             }, 60000, this.roomClient);
 
         stats_process = false;
@@ -918,6 +1290,7 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 				stats = getUser.main;
 				stats[3] = stats[3] + amountofExp;
                 stats[5] = parseInt(stats[5]) + parseInt(monsterGoldDrop);
+                goldTopScore(senderName, stats[5], this.roomClient);
                 var currentLevel = stats[4];
 				stats[4] = Math.floor(stats[3] / 20);
                 stats[4] = calcLevel(stats[3])
@@ -937,6 +1310,7 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 						format : 'text'
 					});
 					stats[1] = stats[1] + 1;
+                    pepperTopScore(senderName, stats[1], this.roomClient);
 				}
 
                 // item gain
@@ -1142,7 +1516,9 @@ function initPlayer(playername, self, id, name) {
 
     return playerObject;
 }
-
+function isNumeric(n) {
+  return !isNaN(parseFloat(n)) && isFinite(n);
+}
 function updatePlayer(playerObject, self, id){
     if (isBossFight){
         logToFile("Saving to bossStore");
@@ -1190,6 +1566,82 @@ function getNameToUse(playerProfileArray){
     }else{
         return playerProfileArray[1].toString() + " (" + fullName[0].charAt(0) + "." + fullName[1].charAt(0) + ")";
     }
+}
+function pepperTopScore(senderName, peppers, room){
+    var fs = require('fs');
+    var obj = fs.readFileSync('alltime.json', 'utf8')
+    logToFile(obj.toString())
+    if (obj.toString() != ""){
+        topScoresAll = JSON.parse(obj);
+        logToFile(topScoresAll.toString());
+    }
+    logToFile("Does he top the peppers? " + (peppers>topScoresAll.pepperScores[0]).toString());
+    if (peppers > topScoresAll.pepperScores[0]){
+        topScoresAll.pepperScores[0] = peppers;
+        topScoresAll.pepperPlayers[0] = senderName;
+
+        var fs = require('fs');
+        fs.writeFileSync("alltime.json", JSON.stringify(topScoresAll), 'utf8');
+        printMessage(senderName + " has just achieved a new pepper high score!", "green", room, "text");
+        return; 
+    } else if (peppers > topScoresAll.pepperScores[1] && !isInArray(senderName, topScoresAll.pepperPlayers)){
+        topScoresAll.pepperScores[1] = peppers;
+        topScoresAll.pepperPlayers[1] = senderName;
+
+        var fs = require('fs');
+        fs.writeFileSync("alltime.json", JSON.stringify(topScoresAll), 'utf8');
+        printMessage(senderName + " has just achieved a new pepper high score!", "green", room, "text");
+
+        return; 
+    } else if (peppers > topScoresAll.pepperScores[2] && !isInArray(senderName, topScoresAll.pepperPlayers)){
+        topScoresAll.pepperScores[2] = peppers;
+        topScoresAll.pepperPlayers[2] = senderName;
+
+        var fs = require('fs');
+        fs.writeFileSync("alltime.json", JSON.stringify(topScoresAll), 'utf8');
+         printMessage(senderName + " has just achieved a new pepper high score!", "green", room, "text");
+
+        return; 
+    }
+
+}
+function goldTopScore(senderName, gold, room){
+    var fs = require('fs');
+    var obj = fs.readFileSync('alltime.json', 'utf8')
+    logToFile(obj.toString())
+    if (obj.toString() != ""){
+        topScoresAll = JSON.parse(obj);
+        logToFile(topScoresAll.toString());
+    }
+    logToFile("Does he top the gold? " + (gold>topScoresAll.goldScores[0]).toString());
+    if (gold > topScoresAll.goldScores[0]){
+        topScoresAll.goldScores[0] = gold;
+        topScoresAll.goldPlayers[0] = senderName;
+
+        var fs = require('fs');
+        fs.writeFileSync("alltime.json", JSON.stringify(topScoresAll), 'utf8');
+        printMessage(senderName + " has just achieved a new gold high score!", "green", room, "text");
+        return; 
+    } else if (gold > topScoresAll.goldScores[1] && !isInArray(senderName, topScoresAll.goldPlayers)){
+        topScoresAll.goldScores[1] = gold;
+        topScoresAll.goldPlayers[1] = senderName;
+
+        var fs = require('fs');
+        fs.writeFileSync("alltime.json", JSON.stringify(topScoresAll), 'utf8');
+        printMessage(senderName + " has just achieved a new gold high score!", "green", room, "text");
+
+        return; 
+    } else if (gold > topScoresAll.goldScores[2] && !isInArray(senderName, topScoresAll.goldPlayers)){
+        topScoresAll.goldScores[2] = gold;
+        topScoresAll.goldPlayers[2] = senderName;
+
+        var fs = require('fs');
+        fs.writeFileSync("alltime.json", JSON.stringify(topScoresAll), 'utf8');
+         printMessage(senderName + " has just achieved a new gold high score!", "green", room, "text");
+
+        return; 
+    }
+
 }
 function classCast(playername, roomClient, playerObject, id, self, glbStore){
 
@@ -1259,6 +1711,8 @@ function classCast(playername, roomClient, playerObject, id, self, glbStore){
                     var princessPower = randFromRange(0, parseInt(getUser.main[4])/2);
                     printMessage(nickName + " waves around the magical <b>cinnamon stick</b> and produced <b>" + princessPower.toString() + " peppers </b>.", "random", roomClient, "html");
                     getUser.main[1] += princessPower;
+
+                    pepperTopScore(getUser.profile[0], getUser.main[1], roomClient);
                     updatePlayer(getUser, self, senderId)
                 }else if(chooseAbility==2){
                     logToFile("bread stick attackdmg: " + attackdmg[0]);
@@ -1336,7 +1790,13 @@ app.listen();
 getAllPeople(peopleInRoom);
 logToFile(peopleInRoom);
 fillMonsterChanceArray();
-
+var fs = require('fs');
+var obj = fs.readFileSync('alltime.json', 'utf8')
+logToFile(obj.toString())
+if (obj.toString() != ""){
+    topScoresAll = JSON.parse(obj);
+    logToFile(topScoresAll.toString());
+}
 var timer = setInterval(function() {
  logToFile("Adding 1 to everyone") 
 
