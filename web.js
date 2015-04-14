@@ -4,8 +4,8 @@
 //           classInfo: [name, rerolls, target, classMod] 
 //           profile: [playerName, "characterName", "","","",""]
 //           ]
-var rareItems = ["Shiny spatula"];
-var rareItemsEffects = ["Passively increase seasoning mod by 20%"];
+var rareItems = ["Shiny spatula", "Chef's Apron"];
+var rareItemsEffects = ["Passively increase seasoning mod by 20%", "Decrease damage taken by 10%"];
 var typesOfMonsters = ["globin", "poring", "Ghostly Josh", "Headless Jimmy", "Spooky Jennie", 
 "Playboy Rob", "Mad Patrick", "Crazy Leo", "Sad Caledonia", 
 "Master Imran", "Giant Josh", "Grapefruit Jimmy", "Fried Rob", "Potato Leo",
@@ -82,8 +82,14 @@ var bossMonsterParty = {
     hpGain: 0,
     store: "",
     totalRoll: 0,
-    target: ""
+    target: "",
+    playerNames: []
 };
+var monsterGracePeriod = function (){
+    logToFile("alreadyattacking to false");
+    alreadyattacking = false;
+}
+var monsterGracePeriodTmr;
 var isBossFight = false;
 var monsterBossTimer;
 var stats_process = false;
@@ -392,7 +398,31 @@ addon.webhook('room_message', /^\/duel*\s*([a-z]+)\s*([\S\s]*)$/i, function  * (
     }
     
 });
-addon.webhook('room_message', /^[^\/].*|^\/farm|^\/ping|^\/profile\s*([a-z]+)?\s*([a-z]+)?|^\/poll*\s*([a-z]+)\s*([\S\s]*)$/i, function  * () {
+addon.webhook('room_message', /^[^\/].*|^\/farm|^\/help|^\/ping|^\/profile\s*([a-z]+)?\s*([a-z]+)?|^\/poll*\s*([a-z]+)\s*([\S\s]*)$/i, function  * () {
+   if (this.match[0] == "/help" && !statsAll){
+    statsAll = true;
+    var message = "";
+    message += "<b>/help for The Newbies Room(tm)(r)(uh)</b><br>";
+    message += "<b>ping</b> - Check the time it takes for HC to recieve your message.<br>";
+    message += "<b>ready</b> - Ready up.<br>";
+    message += "<b>/poll start|vote|add</b> - Start a poll, vote for an option, add an entry. Requires a third arg.<br>";
+    message += "<b>/roll xdx+x</b> - roll a dice with (#ofdice)d(#ofsides) + (modifier). Default is 1d20.<br>";
+    message += "<b>/farm</b> - triggers a monster encounter when prompted.<br>";
+    message += "<b>/profile nick {name}</b> - Changes nickname of character, leaving blank sets back to default.<br>";
+    message += "<b>/shop |buy {item}</b> - Shows list of items to buy | buy and use an item.<br>";
+    message += "<b>/target {playername}</b> - Targets a player, used for target-only skills.<br>";
+    message += "<b>/class |plsgivemesomethinggood</b> - Shows status of class | roll for a random class.<br>";
+    message += "<b>/stats | all | top | alltime</b> - Shows stats | Shows stats of everyone | Shows top players | Shows all time top players.<br>";
+    message += "<b>/inventory</b> - Shows obtained items.<br>";
+    message += "<b>/pepper</b> - Uses peppers, can specify amount of peppers to use.<br>";
+    yield printMessage(message, "gray", this.roomClient, "html");
+
+    statsTimer = setTimeout(function (room) {
+                logToFile("stats all is ready");
+                statsAll = false;
+            }, 60000, this.roomClient);
+    return;
+   }
     var voteOptionMsg = "";
     if (this.match[0].startsWith("/poll") && this.match[3] == "start" && this.match[4]){
         pollObj = {
@@ -554,7 +584,7 @@ addon.webhook('room_message', /^[^\/].*|^\/farm|^\/ping|^\/profile\s*([a-z]+)?\s
                 gainHP = 1;
             }
             logToFile("GainHp Boss: " + gainHP);
-            amountofExp = Math.floor(randFromRange(1,10)*levelofMob);
+            amountofExp = Math.floor(randFromRange(10,20)*levelofMob);
             monsterGoldDrop = randFromRange(levelofMob/2,levelofMob) * 2;
             monsterType = typesOfMonsters[Math.floor(Math.random() * typesOfMonsters.length)];
             monsterfoodDrop = foodDrops[Math.floor(Math.random() * foodDrops.length)];
@@ -585,12 +615,13 @@ addon.webhook('room_message', /^[^\/].*|^\/farm|^\/ping|^\/profile\s*([a-z]+)?\s
                         }
                         if (totalRolls >= bossMonsterParty.hp){
                             logToFile("Boss Monster Loses");
-                            room.sendNotification("Everyone that rolled gains " + bossMonsterParty.expGain.toString() + "exp, " + bossMonsterParty.hpGain.toString() + "hp, and " + bossMonsterParty.goldGain.toString() + " gold.");
+                            room.sendNotification(bossMonsterParty.expGain.toString() + " exp is split between everyone who rolled. " + bossMonsterParty.playerNames.toString() + " also gains " + bossMonsterParty.hpGain.toString() + "hp, and " + bossMonsterParty.goldGain.toString() + " gold.");
+                            var splitExp = Math.ceil(bossMonsterParty.expGain / bossMonsterParty.playersIn.length)
                             for (var i = 0; i < bossMonsterParty.playersIn.length; i++){
                                 var getUser = dataBase[bossMonsterParty.playersIn[i]];
                                 getUser.main[0] += bossMonsterParty.hpGain;
                                 getUser.main[5] += bossMonsterParty.goldGain;
-                                getUser.main[3] += bossMonsterParty.expGain;
+                                getUser.main[3] += splitExp;
                                 getUser.main[2] = 0;
 
 
@@ -640,12 +671,12 @@ addon.webhook('room_message', /^[^\/].*|^\/farm|^\/ping|^\/profile\s*([a-z]+)?\s
                         hpGain: 0,
                         store: "",
                         totalRoll: 0,
-                        target: ""
+                        target: "",
+                        playerNames: []
                     }
                     logToFile("Boss Monster end");
                     underattack = "";
-
-                    alreadyattacking = false;
+                    monsterGracePeriodTmr = setTimeout(monsterGracePeriod, 30000);
                     trigger = false
 
             }
@@ -669,12 +700,10 @@ addon.webhook('room_message', /^[^\/].*|^\/farm|^\/ping|^\/profile\s*([a-z]+)?\s
     		monsterType = typesOfMonsters[Math.floor(Math.random() * typesOfMonsters.length)];
     		monsterfoodDrop = foodDrops[Math.floor(Math.random() * foodDrops.length)];
 
-            yield printMessage("Quickly @" + senderMentionName + ", the level "
+            yield printMessage("Quickly @" + senderMentionName + ", the lvl "
                 + levelofMob.toString()
-                + " " + monsterType + " is going after you! Roll a 1d20 and defeat it. You must beat a " + hp +". Rolling for attack damage...","red", this.roomClient,"text");
+                + " " + monsterType + " appeared! Roll more than: " + hp.toString() + " | It will deal: " + attackdmg[0].toString() + " dmg.","red", this.roomClient,"text");
             logToFile("Attack Damage in first enc: " + attackdmg.toString())
-            yield printMessage(formatRoll(Math.ceil(levelofMob/2), 8, 0, attackdmg, monsterType), "red", this.roomClient, "html");
-
     		logToFile("Starting to wait for player " + underattack);
     		monsterTimer = setTimeout(function (room, id, playerObject, self) {
                 if (underattack != ""){
@@ -682,7 +711,7 @@ addon.webhook('room_message', /^[^\/].*|^\/farm|^\/ping|^\/profile\s*([a-z]+)?\s
     				logToFile("Monster timed out");
     				room.sendNotification(underattack + " took too long to fight back, and nearly died to the monster. "+ attackdmg[0]+ "hp lost.");
     				underattack = "";
-    				alreadyattacking = false;
+                    monsterGracePeriodTmr = setTimeout(monsterGracePeriod, 30000);
     				stats = getUser.main;
     				stats[0] = parseInt(stats[0]) - attackdmg[0];
     				getUser.main = stats;
@@ -1019,28 +1048,23 @@ addon.webhook('room_message', /^\/stats\s*([\S]*)$/i, function  * () {
         logToFile(JSON.stringify(topScoresAll));
         var messageToSend = "";
         messageToSend += "################## The Newbies Leaderboard ##################\n";
-        messageToSend += "~~~~~ Top 3 EXP ~~~~~\n";
+        messageToSend += "~~~~~ Top EXP ~~~~~\n";
         yield printMessage(messageToSend, "purple", this.roomClient, "text");
         var expMessage = "";
-
-        for (var i in topScoresAll.expScores){
-            expMessage += "[ " + topScoresAll.expPlayers[i] + " ] ~~~~~ " + topScoresAll.expScores[i] + "\n";
-        }
+        expMessage += "[ " + topScoresAll.expPlayers[0] + " ] ~~~~~ " + topScoresAll.expScores[0] + "\n";
+  
 
         yield printMessage(expMessage, "gray", this.roomClient, "text");
-        yield printMessage("~~~~~ Top 3 Peppers ~~~~~", "purple", this.roomClient, "text");
+        yield printMessage("~~~~~ Top Pepper ~~~~~", "purple", this.roomClient, "text");
 
         var pepMessage = "";
-        for (var i in topScoresAll.pepperScores){
-            pepMessage += "[ " + topScoresAll.pepperPlayers[i] + " ] ~~~~~ " + topScoresAll.pepperScores[i] + "\n";
-        }
+        pepMessage += "[ " + topScoresAll.pepperPlayers[0] + " ] ~~~~~ " + topScoresAll.pepperScores[0] + "\n";
         yield printMessage(pepMessage, "gray", this.roomClient, "text");
-        yield printMessage("~~~~~ Top 3 Gold ~~~~~", "purple", this.roomClient, "text");
+        yield printMessage("~~~~~ Top Gold ~~~~~", "purple", this.roomClient, "text");
 
         var goldMessage = "";
-        for (var i in topScoresAll.goldScores){
-            goldMessage += "[ " + topScoresAll.goldPlayers[i] + " ] ~~~~~ " + topScoresAll.goldScores[i] + "\n";
-        }
+        goldMessage += "[ " + topScoresAll.goldPlayers[0] + " ] ~~~~~ " + topScoresAll.goldScores[0] + "\n";
+        
         yield printMessage(goldMessage, "gray", this.roomClient, "text");
 
         var fs = require('fs');
@@ -1202,6 +1226,7 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
             total = parseInt(diceRoll[0]);
             yield printMessage(totalString, "purple", this.roomClient, "text");
             bossMonsterParty.playersIn.push(senderId);
+            bossMonsterParty.playerNames.push(senderName);
             bossMonsterParty.playersRoll.push(total);
             bossMonsterParty.totalRoll += total;
             var leftOver = bossMonsterParty.hp - bossMonsterParty.totalRoll;
@@ -1234,10 +1259,11 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 			var seasonMod = getUser.main[2];
             var inventory = getUser.inventory;
             var itemMod = 0;
-            if (isInArray("Shiny spatula", inventory)){
+            if (isInArray("Shiny spatula", inventory) && senderName == underattack){
                 itemMod = Math.ceil(seasonMod * .20);
+                seasonMod += itemMod;
+                yield printMessage(senderMentionName + " increases the seasoning mod to " + seasonMod.toString() + " from " + (seasonMod -itemMod).toString(), "purple", this.roomClient, "text");
             }
-            seasonMod += itemMod;
 			numofdice = 1;
 			numofsides = 20;
             var diceRoll = rollDice(parseInt(numofdice),parseInt(numofsides), parseInt(seasonMod));
@@ -1265,7 +1291,7 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 		if (((senderName == underattack) && (numofdice == 1) && (numofsides == 20 ))) {
 			clearTimeout(monsterTimer);
             underattack == "";
-            alreadyattacking = false;
+            monsterGracePeriodTmr = setTimeout(monsterGracePeriod, 30000);
 			logToFile("TOTAL ROLL: " + total);
             logToFile("HP TO BEAT: " + hp);
 			if (parseInt(total) >= hp) {
@@ -1328,10 +1354,13 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
                 }
 				getUser.main = stats;
                 getUser = updatePlayer(getUser,this, senderId);
-				alreadyattacking = false;
                 trigger = false;
                 underattack = "";
 			} else {
+                if (isInArray("Chef's Apron", getUser.inventory)){
+                    attackdmg[0] -= (Math.floor(attackdmg[0]*.10));
+                    yield printMessage("@" + senderMentionName + " decreased the attack damage of the monster to " + attackdmg[0].toString(), "gray", this.roomClient, "text");
+                }
                 logToFile("losing hp: " + attackdmg.toString());
 				yield this.roomClient.sendNotification("@" + senderMentionName + ' lost ' + attackdmg[0] + ' hp!', {
 					color : 'purple',
@@ -1356,7 +1385,6 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 				}
 				underattack = ""
                 trigger = false;
-				alreadyattacking = false;
 			}
 
 
@@ -1447,10 +1475,10 @@ function rollDice (num, sides, mod) {
 	}
 
 	//sanity check
-	if (parseInt(num) > 100) {
-		res[0] = -1;
-		return res;
-	}
+	// if (parseInt(num) > 100) {
+	// 	res[0] = -1;
+	// 	return res;
+	// }
 
 	for (i = 1; i < num + 1; i++) {
 		res.push(randFromRange(1, sides));
@@ -1590,7 +1618,6 @@ function pepperTopScore(senderName, peppers, room){
 
         var fs = require('fs');
         fs.writeFileSync("alltime.json", JSON.stringify(topScoresAll), 'utf8');
-        printMessage(senderName + " has just achieved a new pepper high score!", "green", room, "text");
 
         return; 
     } else if (peppers > topScoresAll.pepperScores[2] && !isInArray(senderName, topScoresAll.pepperPlayers)){
@@ -1599,7 +1626,6 @@ function pepperTopScore(senderName, peppers, room){
 
         var fs = require('fs');
         fs.writeFileSync("alltime.json", JSON.stringify(topScoresAll), 'utf8');
-         printMessage(senderName + " has just achieved a new pepper high score!", "green", room, "text");
 
         return; 
     }
@@ -1628,7 +1654,6 @@ function goldTopScore(senderName, gold, room){
 
         var fs = require('fs');
         fs.writeFileSync("alltime.json", JSON.stringify(topScoresAll), 'utf8');
-        printMessage(senderName + " has just achieved a new gold high score!", "green", room, "text");
 
         return; 
     } else if (gold > topScoresAll.goldScores[2] && !isInArray(senderName, topScoresAll.goldPlayers)){
@@ -1637,7 +1662,6 @@ function goldTopScore(senderName, gold, room){
 
         var fs = require('fs');
         fs.writeFileSync("alltime.json", JSON.stringify(topScoresAll), 'utf8');
-         printMessage(senderName + " has just achieved a new gold high score!", "green", room, "text");
 
         return; 
     }
