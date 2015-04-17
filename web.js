@@ -222,6 +222,9 @@ addon.webhook('room_message', /^\/gm\s+(?:(\S+)\s+)*/i, function  * () {
         }
     }
     
+    for (var i in store){
+        getMaxHp(store[i], this, i);
+    }
 
     return yield printMessage("done", "green", this.roomClient, "text");
 
@@ -366,6 +369,7 @@ addon.webhook('room_message', /^\/duel*\s*([a-z]+)\s*([a-z\s]*)\s*([0-9]*)$/i, f
                 // TODO: PlayerTwo must accept
                 yield printMessage("Waiting 1 minute for " + duelObj.playerTwo +" to accept. Must type /duel accept", "green", this.roomClient, "text")
                 var waitingDuel = function (room){
+                    alreadyattacking = false;
                     room.sendNotification("Dueler did not accept in time, cancelling duel.");
                     duelObj = new duelObject();
                 }
@@ -388,7 +392,7 @@ addon.webhook('room_message', /^\/duel*\s*([a-z]+)\s*([a-z\s]*)\s*([0-9]*)$/i, f
             room.sendNotification("End of betting phase. Duelers have 30s to roll.");
         }
 
-        var rollingFunction = function(room, self,xx){
+        duelObj.rollingFunction = function(room, self, xx){
             
             var store = duelObj.store;
             if (duelObj.playerOneRoll == 0 && duelObj.playerTwoRoll == 0 ){
@@ -401,10 +405,10 @@ addon.webhook('room_message', /^\/duel*\s*([a-z]+)\s*([a-z\s]*)\s*([0-9]*)$/i, f
                     var messageToSend = "";
                     room.sendNotification(duelObj.playerOne + " wins the duel! Anyone who betted on the winner gets their amount back + portion of the bets placed on the loser.");
                     var totalBets = duelObj.playerTwoTotalBets;
-                    messageToSend += "Total gold in the pool is " + totalBets + ".\n"
+                   // messageToSend += "Total gold in the pool is " + totalBets + ".\n"
                     for ( var i = 0; i < duelObj.playerOneBetters.length; i++){
-                        var portion = Math.floor((duelObj.playerOneBettersBets[i] / duelObj.playerOneTotalBets) * totalBets)
-                        var totalWon = duelObj.playerOneBettersBets[i] + portion;
+                       // var portion = Math.floor((duelObj.playerOneBettersBets[i] / duelObj.playerOneTotalBets) * totalBets)
+                        var totalWon = duelObj.playerOneBettersBets[i] *2;
                         messageToSend += duelObj.playerOneBetters[i] + " has won " + totalWon.toString() + "gold. \n";
                         var user = store[getIdFromName(self, duelObj.playerOneBetters[i],store)];
                         user.main[5] += totalWon;
@@ -417,11 +421,11 @@ addon.webhook('room_message', /^\/duel*\s*([a-z]+)\s*([a-z\s]*)\s*([0-9]*)$/i, f
                     var messageToSend = "";
                     room.sendNotification(duelObj.playerTwo + " wins the duel! Anyone who betted on the winner gets their amount back + portion of the bets placed on the loser.");
                     var totalBets = duelObj.playerOneTotalBets;
-                    messageToSend += "Total gold in the pool is " + totalBets + ".\n"
+                   // messageToSend += "Total gold in the pool is " + totalBets + ".\n"
 
                     for ( var i = 0; i < duelObj.playerTwoBetters.length; i++){
-                        var portion = Math.floor((duelObj.playerTwoBettersBets[i] / duelObj.playerTwoTotalBets) * totalBets)
-                        var totalWon = duelObj.playerTwoBettersBets[i] + portion;
+                       // var portion = Math.floor((duelObj.playerTwoBettersBets[i] / duelObj.playerTwoTotalBets) * totalBets)
+                        var totalWon = duelObj.playerTwoBettersBets[i] * 2;
 
                         messageToSend += duelObj.playerTwoBetters[i] + " has won " + totalWon.toString() + " gold.\n";
                         var user = store[getIdFromName(self, duelObj.playerTwoBetters[i], store)];
@@ -442,7 +446,7 @@ addon.webhook('room_message', /^\/duel*\s*([a-z]+)\s*([a-z\s]*)\s*([0-9]*)$/i, f
                     }
                     for ( var i = 0; i < duelObj.playerOneBetters.length; i++){
                         var totalWon = duelObj.playerOneBettersBets[i]
-                        messageToSend += duelObj.playerOneBetters[i] + " has won " + totalWon.toString() + "gol.d \n";
+                        messageToSend += duelObj.playerOneBetters[i] + " has won " + totalWon.toString() + "gold. \n";
                         var user = store[getIdFromName(self, duelObj.playerOneBetters[i],store)];
                         user.main[5] += totalWon;
                         updatePlayer(user, self, getIdFromName(self,duelObj.playerOneBetters[i], store));
@@ -454,7 +458,7 @@ addon.webhook('room_message', /^\/duel*\s*([a-z]+)\s*([a-z\s]*)\s*([0-9]*)$/i, f
             }
         }
         duelObj.store = yield this.tenantStore.all(100000);
-        duelObj.duelBetTimer = setTimeout(bettingFunction, 30000, this.roomClient, rollingFunction, this, duelObj.store);
+        duelObj.duelBetTimer = setTimeout(bettingFunction, 30000, this.roomClient, duelObj.rollingFunction, this, duelObj.store);
     return;
 
     }else{
@@ -1279,6 +1283,7 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
                 alreadyrolling = false;
               return;  
             }
+            //duel roll
             seasonMod = 0;
             numofdice = 1;
             numofsides = 20;
@@ -1290,6 +1295,10 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
                 duelObj.playerOneRoll = total;
             }else{
                 duelObj.playerTwoRoll = total;
+            }
+            if (duelObj.playerTwoRoll != 0 && duelObj.playerOneRoll != 0){
+                clearTimeout(duelObj.duelRollTimer);
+                duelObj.rollingFunction(this.roomClient, this, store);
             }
             alreadyrolling = false;
             return;
@@ -1391,16 +1400,12 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
                 }
                 var nameToUse = getNameToUse(getUser.profile);
                 logToFile("GainHP in roll: " + gainHP.toString());
+                var messageToSend = "";
                 if (senderName == "Josh Elsasser"){
-                yield this.roomClient.sendNotification('<b>' + nameToUse + '</b> hunkered the ' + monsterType + ' and hunkered up ' + monsterfoodDrop + ' that hunkers ' + Math.floor(gainHP) + " hp along with " + amountofExp + " hunkerExp and " + monsterGoldDrop.toString() + " hunker!", {
-                    color : 'purple',
-                    format : 'html'
-                });
+                messageToSend +='<b>' + nameToUse + '</b> hunkered the ' + monsterType + ' and hunkered up ' + monsterfoodDrop + ' that hunkers ' + Math.floor(gainHP) + " hp along with " + amountofExp + " hunkerExp and " + monsterGoldDrop.toString() + " hunker!\n";
+                   
                 }else{
-                yield this.roomClient.sendNotification('<b>' + nameToUse + '</b> fried the ' + monsterType + ' and cooked up ' + monsterfoodDrop + ' that restores ' + Math.floor(gainHP) + " hp along with " + amountofExp + " exp and " + monsterGoldDrop.toString() + " gold!", {
-                    color : 'purple',
-                    format : 'html'
-                });                
+                 messageToSend +='<b>' + nameToUse + '</b> fried the ' + monsterType + ' and cooked up ' + monsterfoodDrop + ' that restores ' + Math.floor(gainHP) + " hp along with " + amountofExp + " exp and " + monsterGoldDrop.toString() + " gold!\n";              
                 }
 
 				stats = getUser.main;
@@ -1411,8 +1416,8 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 				stats[4] = Math.floor(stats[3] / 20);
                 stats[4] = calcLevel(stats[3])
                 if (currentLevel < stats[4]){
-                    yield printMessage("@" + senderMentionName + " has leveled up and is now level " + stats[4].toString() + ". +50hp.", "yellow", this.roomClient, "text");
-					stats[0] += 50;
+                    messageToSend+= senderName + " has leveled up and is now level " + stats[4].toString() + ". +50hp.\n"
+				    stats[0] += 50;
                 }
 				amountofExp = 0;
                 monsterGoldDrop = 0;
@@ -1421,10 +1426,7 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 				stats[0] = parseInt(stats[0]) + Math.floor(gainHP);
 				if (chanceOfFaith) {
 					chanceOfFaith = false;
-					yield this.roomClient.sendNotification('The monster dropped some pepper! @' + senderMentionName + ' gained 1 pepper.', {
-						color : 'purple',
-						format : 'text'
-					});
+					messageToSend+= 'The monster dropped some pepper! @' + senderMentionName + ' gained 1 pepper.\n';
 					stats[1] = stats[1] + 1;
                     pepperTopScore(senderName, stats[1], this.roomClient);
 				}
@@ -1442,6 +1444,7 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
                         getUser.inventory.push(itemToGet);
                     }
                 }
+                printMessage(messageToSend, "green", this.roomClient, "html");
 				getUser.main = stats;
                 getUser = updatePlayer(getUser,this, senderId);
                 trigger = false;
@@ -1449,7 +1452,7 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 			} else {
                 if (isInArray("Chef's Apron", getUser.inventory)){
                     attackdmg[0] -= (Math.floor(attackdmg[0]*.10));
-                    yield printMessage("@" + senderMentionName + " decreased the attack damage of the monster to " + attackdmg[0].toString(), "gray", this.roomClient, "text");
+                    //yield printMessage("@" + senderMentionName + " decreased the attack damage of the monster to " + attackdmg[0].toString(), "gray", this.roomClient, "text");
                 }
                 logToFile("losing hp: " + attackdmg.toString());
 				yield this.roomClient.sendNotification("@" + senderMentionName + ' lost ' + attackdmg[0] + ' hp!', {
@@ -1585,6 +1588,17 @@ function randFromRange (low, high) {
     return roll;
 }
 
+function getMaxHp(playerObject, self, id){
+    var currentLevel = playerObject.main[4] +1;
+    var baseHp = Math.ceil(((currentLevel/2) * 8) *5);
+    if (playerObject.main[0] > baseHp){
+        playerObject.main[0] = baseHp;
+        updatePlayer(playerObject, self, id);
+        logToFile("Updated player hp: " + baseHp);
+    }
+    return playerObject;
+
+}
 // HIPCHAT FUNCTIONS
 // =================
 
@@ -1615,14 +1629,15 @@ function sleep (milliSeconds) {
 function initPlayer(playername, self, id, name) {
     var self = self;
     if (playername){
-    logToFile("USER DOES EXIST: " + playername.profile[0])
-    if (isBossFight){
-        return bossMonsterParty.store[id];
-    }
-    if (duelObj.status){
-        return duelObj.store[id];
-    }
-    return playername;
+        logToFile("USER DOES EXIST: " + playername.profile[0])
+
+        if (isBossFight){
+            return bossMonsterParty.store[id];
+        }
+        if (duelObj.status){
+            return duelObj.store[id];
+        }
+        return getMaxHp(playername,self, id);
     }
     logToFile("CREATING USER: " + id);
     var playerObject = {
@@ -1633,8 +1648,7 @@ function initPlayer(playername, self, id, name) {
 
     }
     updatePlayer(playerObject, self, id);
-
-    return playerObject;
+    return getMaxHp(playerObject, self, id);
 }
 function isNumeric(n) {
   return !isNaN(parseFloat(n)) && isFinite(n);
@@ -1777,7 +1791,8 @@ function duelObject(store){
     this.duelBetTimer = 0,
     this.duelRollTimer = 0,
     this.duelAcceptTimer = 0,
-    this.store = store
+    this.store = store,
+    this.rollingFunction;
 }
 function classCast(playername, roomClient, playerObject, id, self, glbStore){
 
