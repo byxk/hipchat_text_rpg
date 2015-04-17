@@ -138,8 +138,9 @@ addon.webhook('room_message', /^\/shop\s*([a-z]+)?\s*([a-z]+)?\s*([0-9]+)?/i, fu
         }else{
             stats[5] -= 15;
             // hp heals for 30
-            stats[0] += 30;
+            var playerHp = stats[0] + 30;
             getUser.main = stats;
+            getUser = setHp(this, getUser, senderId, playerHp);
             getUser = updatePlayer(getUser, this, senderId)
             shop_process = false;
             return yield printMessage("HP potion bought and used automatically, +30hp.", "green", this.roomClient);
@@ -670,7 +671,7 @@ addon.webhook('room_message', /^[^\/].*|^\/farm|^\/help|^\/ping|^\/profile\s*([a
             bossMonsterParty.target = senderId;
             var that = this;
 
-            monsterBossMethod = function(){
+            monsterBossMethod = function(self){
                 dataBase = bossMonsterParty.store;
 
                 isBossFight = false;
@@ -690,7 +691,8 @@ addon.webhook('room_message', /^[^\/].*|^\/farm|^\/help|^\/ping|^\/profile\s*([a
                             var splitExp = Math.ceil(bossMonsterParty.expGain / bossMonsterParty.playersIn.length)
                             for (var i = 0; i < bossMonsterParty.playersIn.length; i++){
                                 var getUser = dataBase[bossMonsterParty.playersIn[i]];
-                                getUser.main[0] += bossMonsterParty.hpGain;
+                                var playerHpGain = getUser.main[0] + bossMonsterParty.hpGain;
+                                getUser = setHp(self, getUser, bossMonsterParty.playersIn[i], playerHpGain)
                                 getUser.main[5] += bossMonsterParty.goldGain;
                                 getUser.main[3] += splitExp;
                                 getUser.main[2] = 0;
@@ -753,7 +755,7 @@ addon.webhook('room_message', /^[^\/].*|^\/farm|^\/help|^\/ping|^\/profile\s*([a
             }
 
         }
-            monsterBossTimer = setTimeout(monsterBossMethod, 120000);
+            monsterBossTimer = setTimeout(monsterBossMethod, 120000, this);
         }else {
     		//attackdmg = rollDice(1,8,0);
 
@@ -1332,7 +1334,7 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
             updatePlayer(getUser, this, senderId);
             if (leftOver <=0){
                 clearTimeout(monsterBossTimer);
-                monsterBossMethod();
+                monsterBossMethod(this);
             }else {
             if (senderName == "Josh Elsasser"){
                 yield printMessage(senderName + " hunkers " + total.toString() + " to the hunkered boss roll. Boss has " + leftOver.toString() + " hunker left!", "yellow", this.roomClient, "text");
@@ -1407,8 +1409,8 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
                 }else{
                  messageToSend +='<b>' + nameToUse + '</b> fried the ' + monsterType + ' and cooked up ' + monsterfoodDrop + ' that restores ' + Math.floor(gainHP) + " hp along with " + amountofExp + " exp and " + monsterGoldDrop.toString() + " gold!\n";              
                 }
-
 				stats = getUser.main;
+                var playerHp = stats[0];
 				stats[3] = stats[3] + amountofExp;
                 stats[5] = parseInt(stats[5]) + parseInt(monsterGoldDrop);
                 goldTopScore(senderName, stats[5], this.roomClient);
@@ -1417,13 +1419,11 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
                 stats[4] = calcLevel(stats[3])
                 if (currentLevel < stats[4]){
                     messageToSend+= senderName + " has leveled up and is now level " + stats[4].toString() + ". +50hp.\n"
-				    stats[0] += 50;
+				    playerHp += 50;
                 }
 				amountofExp = 0;
                 monsterGoldDrop = 0;
 				stats[2] = 0;
-
-				stats[0] = parseInt(stats[0]) + Math.floor(gainHP);
 				if (chanceOfFaith) {
 					chanceOfFaith = false;
 					messageToSend+= 'The monster dropped some pepper! @' + senderMentionName + ' gained 1 pepper.\n';
@@ -1445,7 +1445,9 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
                     }
                 }
                 printMessage(messageToSend, "green", this.roomClient, "html");
+                playerHp = parseInt(playerHp) + Math.floor(gainHP);
 				getUser.main = stats;
+                getUser = setHp(this, getUser, senderId, playerHp);
                 getUser = updatePlayer(getUser,this, senderId);
                 trigger = false;
                 underattack = "";
@@ -1592,11 +1594,23 @@ function getMaxHp(playerObject, self, id){
     var currentLevel = playerObject.main[4] +1;
     var baseHp = Math.ceil(((currentLevel/2) * 8) *5);
     if (playerObject.main[0] > baseHp){
-        playerObject.main[0] = baseHp;
-        updatePlayer(playerObject, self, id);
+       // playerObject.main[0] = baseHp;
+       // updatePlayer(playerObject, self, id);
         logToFile("Updated player hp: " + baseHp);
     }
     return playerObject;
+
+}
+
+function setHp(self, playerObject, id, hpToSet){
+    var currentLevel = playerObject.main[4] +1;
+    var baseHp = Math.ceil(((currentLevel/2) * 8) *5);
+    if (hpToSet > baseHp){
+        return playerObject;
+    }else{
+        playerObject.main[0] = hpToSet;
+        return updatePlayer(playerObject, self, id);
+    }
 
 }
 // HIPCHAT FUNCTIONS
@@ -1637,7 +1651,7 @@ function initPlayer(playername, self, id, name) {
         if (duelObj.status){
             return duelObj.store[id];
         }
-        return getMaxHp(playername,self, id);
+        return playername;
     }
     logToFile("CREATING USER: " + id);
     var playerObject = {
@@ -1647,8 +1661,7 @@ function initPlayer(playername, self, id, name) {
         profile: [name, "", "","","",""]
 
     }
-    updatePlayer(playerObject, self, id);
-    return getMaxHp(playerObject, self, id);
+    return updatePlayer(playerObject, self, id);
 }
 function isNumeric(n) {
   return !isNaN(parseFloat(n)) && isFinite(n);
