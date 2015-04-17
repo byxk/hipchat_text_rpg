@@ -284,6 +284,7 @@ addon.webhook('room_message', /^\/class\s*([a-z]+)?/i, function  * () {
 
 });
 addon.webhook('room_message', /^\/duel*\s*([a-z]+)\s*([a-z\s]*)\s*([0-9]*)$/i, function  * () {
+
     if (alreadyattacking && !duelObj.status){
         return;
     }
@@ -378,7 +379,7 @@ addon.webhook('room_message', /^\/duel*\s*([a-z]+)\s*([a-z\s]*)\s*([0-9]*)$/i, f
         clearTimeout(duelObj.duelAcceptTimer);
         duelObj.waitingForAccept = false;
         duelObj.bettingPhase = true;
-        yield printMessage("Everyone has 10 seconds to place a bet.", "green", this.roomClient, "text")
+        yield printMessage("Everyone @here has 30 seconds to place a bet.", "green", this.roomClient, "text")
 
         var bettingFunction = function (room, rollingFunction,self,store){
             duelObj.bettingPhase = false;
@@ -400,37 +401,56 @@ addon.webhook('room_message', /^\/duel*\s*([a-z]+)\s*([a-z\s]*)\s*([0-9]*)$/i, f
                     var messageToSend = "";
                     room.sendNotification(duelObj.playerOne + " wins the duel! Anyone who betted on the winner gets their amount back + portion of the bets placed on the loser.");
                     var totalBets = duelObj.playerTwoTotalBets;
-                    var portion = totalBets / duelObj.playerOneBetters.length;
-                    messageToSend += "Total amounts of the pool is " + totalBets + ", split " + duelObj.playerOneBetters.length + " ways.\n"
+                    messageToSend += "Total gold in the pool is " + totalBets + ".\n"
                     for ( var i = 0; i < duelObj.playerOneBetters.length; i++){
+                        var portion = Math.floor((duelObj.playerOneBettersBets[i] / duelObj.playerOneTotalBets) * totalBets)
                         var totalWon = duelObj.playerOneBettersBets[i] + portion;
-                        messageToSend += duelObj.playerOneBetters[i] + " has won " + totalWon.toString() + "\n";
+                        messageToSend += duelObj.playerOneBetters[i] + " has won " + totalWon.toString() + "gold. \n";
                         var user = store[getIdFromName(self, duelObj.playerOneBetters[i],store)];
                         user.main[5] += totalWon;
                         updatePlayer(user, self, getIdFromName(self,duelObj.playerOneBetters[i], store));
                     }
+                    printMessage(messageToSend, "yellow", room, "text");
 
                 }else if (duelObj.playerTwoRoll > duelObj.playerOneRoll){
                     // playertwo wins
-                    room.sendNotification(duelObj.playerTwo + " wins the duel!");
                     var messageToSend = "";
                     room.sendNotification(duelObj.playerTwo + " wins the duel! Anyone who betted on the winner gets their amount back + portion of the bets placed on the loser.");
                     var totalBets = duelObj.playerOneTotalBets;
-                    var portion = totalBets / duelObj.playerTwoBetters.length;
-                    messageToSend += "Total amounts of the pool is " + totalBets + ", split " + duelObj.playerTwoBetters.length + " ways.\n"
+                    messageToSend += "Total gold in the pool is " + totalBets + ".\n"
 
                     for ( var i = 0; i < duelObj.playerTwoBetters.length; i++){
+                        var portion = Math.floor((duelObj.playerTwoBettersBets[i] / duelObj.playerTwoTotalBets) * totalBets)
                         var totalWon = duelObj.playerTwoBettersBets[i] + portion;
-                        messageToSend += duelObj.playerTwoBetters[i] + " has won " + totalWon.toString() + "\n";
+
+                        messageToSend += duelObj.playerTwoBetters[i] + " has won " + totalWon.toString() + " gold.\n";
                         var user = store[getIdFromName(self, duelObj.playerTwoBetters[i], store)];
                         user.main[5] += totalWon;
                         updatePlayer(user, self, getIdFromName(self, duelObj.playerTwoBetters[i], store));
                     }
                     printMessage(messageToSend, "yellow", room, "text");
 
+                }else{
+                    room.sendNotification("It was a tie! No one wins and the bets return to their owners");
+                    var messageToSend = "";
+                    for ( var i = 0; i < duelObj.playerTwoBetters.length; i++){
+                        var totalWon = duelObj.playerTwoBettersBets[i]
+                        messageToSend += duelObj.playerTwoBetters[i] + " has won " + totalWon.toString() + "gold. \n";
+                        var user = store[getIdFromName(self, duelObj.playerTwoBetters[i], store)];
+                        user.main[5] += totalWon;
+                        updatePlayer(user, self, getIdFromName(self, duelObj.playerTwoBetters[i], store));
+                    }
+                    for ( var i = 0; i < duelObj.playerOneBetters.length; i++){
+                        var totalWon = duelObj.playerOneBettersBets[i]
+                        messageToSend += duelObj.playerOneBetters[i] + " has won " + totalWon.toString() + "gol.d \n";
+                        var user = store[getIdFromName(self, duelObj.playerOneBetters[i],store)];
+                        user.main[5] += totalWon;
+                        updatePlayer(user, self, getIdFromName(self,duelObj.playerOneBetters[i], store));
+                    }
+                    printMessage(messageToSend, "yellow", room, "text");
                 }
                 alreadyattacking = false;
-                    duelObj = new duelObject();
+                duelObj = new duelObject();
             }
         }
         duelObj.store = yield this.tenantStore.all(100000);
