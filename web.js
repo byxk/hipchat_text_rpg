@@ -54,20 +54,7 @@ var topScoresAll = {
     pepperPlayers: ["","",""],
     pepperScores: [0,0,0]
 }
-var duelObj = {
-    status: false,
-    playerOne: "",
-    playerOneRoll: 0,
-    playerTwoRoll: 0,
-    playerTwo: "",
-    playerBetting: [],
-    playerBet: [],
-    totalBets: 0,
-    bettingPhase: false,
-    attackingphase: false,
-    duelBetTimer: 0,
-    duelRollTimer: 0
-};
+var duelObj = new duelObject();
 var levelofMob = 1;
 var prayer_process = false;
 var inventory_process = false;
@@ -133,7 +120,7 @@ addon.webhook('room_message', /^\/shop\s*([a-z]+)?\s*([a-z]+)?\s*([0-9]+)?/i, fu
     shop_process = true;
     if (matchString[1] != "buy" || !matchString[2] ){
         printMessage("Buy and use an item automatically with /shop buy itemname.", "green", this.roomClient);
-        printMessage("HealthPotion - 15g | Pepper - 3g | Bayleaf - 5g | Dueltoken - 20g", "green", this.roomClient);
+        printMessage("HealthPotion - 15g | Pepper - 5g | Bayleaf - 5g | Dueltoken - 20g", "green", this.roomClient);
         shop_process = false;
         return;
     }
@@ -164,12 +151,12 @@ addon.webhook('room_message', /^\/shop\s*([a-z]+)?\s*([a-z]+)?\s*([0-9]+)?/i, fu
             amountOfPeppers = parseInt(matchString[3]);
         }
         if (isNaN(amountOfPeppers)) amountOfPeppers = 1;
-        if ((3*amountOfPeppers) > playerGold) {
+        if ((5*amountOfPeppers) > playerGold) {
             shop_process = false;
             return yield printMessage("Not enough gold.", "green", this.roomClient);
         }else{
 
-            stats[5] = stats[5] - (3*amountOfPeppers);
+            stats[5] = stats[5] - (5*amountOfPeppers);
             stats[1] = stats[1] + amountOfPeppers;
             getUser.main = stats;
             updatePlayer(getUser, this, senderId)
@@ -296,15 +283,23 @@ addon.webhook('room_message', /^\/class\s*([a-z]+)?/i, function  * () {
 	}
 
 });
-addon.webhook('room_message', /^\/duel*\s*([a-z]+)\s*([\S\s]*)$/i, function  * () {
-    return;
-    if (!duelObj.status && alreadyattacking){
+addon.webhook('room_message', /^\/duel*\s*([a-z]+)\s*([a-z\s]*)\s*([0-9]*)$/i, function  * () {
+    if (alreadyattacking && !duelObj.status){
         return;
     }
+    //matchString[1] == "accept" && senderName == duelObj.playerTwo && duelObj.waitingForAccept
+    
+    logToFile("DUELNAME: "  + duelObj.playerTwo);
+    logToFile("senderName: "  + this.sender.name);
+    logToFile("waitingaccept: " + duelObj.waitingForAccept);
     // cmds for [1] = 
     // "start" - start a duel
     // "bet" - place down a bet on a current duel
     var matchString = this.match;
+    for (var str in matchString){
+        matchString[str] = matchString[str].toString().trim();
+    }
+    logToFile("MATCHSTRING: "  + matchString);
     var store = yield this.tenantStore.all(100000);
     var senderName = this.sender.name
     var senderMentionName = this.sender.mention_name;
@@ -315,13 +310,38 @@ addon.webhook('room_message', /^\/duel*\s*([a-z]+)\s*([\S\s]*)$/i, function  * (
     if (matchString[1] == "bet"){
         if (!duelObj.bettingPhase){
             return yield printMessage("Not in betting phase.", "yellow", this.roomClient, "text");
-        }else if (senderName == duelObj.playerOne || senderName == duelObj.playerTwo) {
-            return yield printMessage("Can't bet on yourself!", "yellow", this.roomClient, "text");
+        // }else if (senderName == duelObj.playerOne || senderName == duelObj.playerTwo) {
+        //     return yield printMessage("Duelers can't bet!", "yellow", this.roomClient, "text");
+        }else if (isInArray(senderName, duelObj.playerOneBetters) || isInArray(senderName, duelObj.playerTwoBetters)) {
+            return yield printMessage("You've already bet!", "yellow", this.roomClient, "text");
         } else {
             if (matchString[2] == ""){
                 return yield printMessage("Need to specify player to bet on.", "yellow", this.roomClient, "text");
+            }else if (!isNumeric(matchString[3])){
+                return yield printMessage("Need to specify a proper number", "yellow", this.roomClient, "text");
+            }else if ( matchString[2] != duelObj.playerOne && matchString[2] != duelObj.playerTwo){
+                logToFile("match String and player one " + ((matchString[2] != duelObj.playerOne)||(matchString[2] != duelObj.playerTwo)));
+                return yield printMessage("Need to bet on a dueler.", "yellow", this.roomClient, "text");
+            }else{
+                var betAmount = parseInt(matchString[3]);
+                if (betAmount > getUser.main[5]){
+                    return yield printMessage("Don't have enough gold to bet that amount!", "yellow", this.roomClient, "text");
+                }
+                getUser.main[5] -= betAmount;
+                updatePlayer(getUser, this, senderId)
+                if (matchString[2] == duelObj.playerOne){
+                    duelObj.playerOneBetters.push(senderName);
+                    duelObj.playerOneBettersBets.push(betAmount);      
+                    duelObj.playerOneTotalBets += betAmount;       
+                }else{
+                    duelObj.playerTwoBetters.push(senderName);
+                    duelObj.playerTwoBettersBets.push(betAmount);      
+                    duelObj.playerTwoTotalBets += betAmount;       
+                }
+
+                return yield printMessage(senderName + " has put down a bet of " + betAmount.toString() + " on " + matchString[2]+".", "yellow", this.roomClient, "text");
             }
-            // duel in progress
+
             return;
         }
     }else if (matchString[1] == "start"){
@@ -336,63 +356,87 @@ addon.webhook('room_message', /^\/duel*\s*([a-z]+)\s*([\S\s]*)$/i, function  * (
                 return yield printMessage("Can't challenge yourself!", "yellow", this.roomClient, "text");
             
             } else {
+                duelObj = new duelObject(store);
                 duelObj.status = true;
+                duelObj.waitingForAccept = true;
                 alreadyattacking = true;
-                duelObj.bettingPhase = true;
                 duelObj.playerOne = senderName;
                 duelObj.playerTwo = matchString[2];
                 // TODO: PlayerTwo must accept
-                yield printMessage("Everyone has 10 seconds to place a bet.", "green", this.roomClient, "text")
-                var bettingFunction = function (room, rollingFunction){
-                    duelObj.bettingPhase = false;
-                    duelObj.attackingphase = true;
-                    duelObj.duelRollTimer = setTimeout(rollingFunction, 10000, room);
-                    room.sendNotification("Duelers, roll!");
+                yield printMessage("Waiting 1 minute for " + duelObj.playerTwo +" to accept. Must type /duel accept", "green", this.roomClient, "text")
+                var waitingDuel = function (room){
+                    room.sendNotification("Dueler did not accept in time, cancelling duel.");
+                    duelObj = new duelObject();
                 }
-
-                var rollingFunction = function(room){
-                    if (duelObj.playerOneRoll == 0 || duelObj.playerTwoRoll == 0 ){
-                        room.sendNotification("No one rolled, cancelling duel.");
-                        alreadyattacking = false;
-                        duelObj = {
-                            status: false,
-                            playerOne: "",
-                            playerOneRoll: 0,
-                            playerTwoRoll: 0,
-                            playerTwo: "",
-                            playerBetting: [],
-                            playerBet: [],
-                            totalBets: 0,
-                            bettingPhase: false,
-                            attackingphase: false,
-                            duelBetTimer: 0,
-                            duelRollTimer: 0
-                        };
-                    }else{
-                        room.sendNotification("End of duel.");
-                        alreadyattacking = false;
-                        duelObj = {
-                            status: false,
-                            playerOne: "",
-                            playerOneRoll: 0,
-                            playerTwoRoll: 0,
-                            playerTwo: "",
-                            playerBetting: [],
-                            playerBet: [],
-                            totalBets: 0,
-                            bettingPhase: false,
-                            attackingphase: false,
-                            duelBetTimer: 0,
-                            duelRollTimer: 0
-                            };
-                    }
-                }
-                duelObj.duelBetTimer = setTimeout(bettingFunction, 10000, this.roomClient, rollingFunction);
-            return;
+                duelObj.duelAcceptTimer = setTimeout(waitingDuel, 60000, this.roomClient);
+                return;
 
             }
         }
-   
+
+    }else if (matchString[1] == "accept" && senderName == duelObj.playerTwo && duelObj.waitingForAccept){
+        clearTimeout(duelObj.duelAcceptTimer);
+        duelObj.waitingForAccept = false;
+        duelObj.bettingPhase = true;
+        yield printMessage("Everyone has 10 seconds to place a bet.", "green", this.roomClient, "text")
+
+        var bettingFunction = function (room, rollingFunction,self,store){
+            duelObj.bettingPhase = false;
+            duelObj.attackingphase = true;
+            duelObj.duelRollTimer = setTimeout(rollingFunction, 30000, room, self, store);
+            room.sendNotification("End of betting phase. Duelers have 30s to roll.");
+        }
+
+        var rollingFunction = function(room, self,xx){
+            
+            var store = duelObj.store;
+            if (duelObj.playerOneRoll == 0 && duelObj.playerTwoRoll == 0 ){
+                room.sendNotification("No one rolled, cancelling duel.");
+                alreadyattacking = false;
+                    duelObj = new duelObject();
+            }else{
+                if (duelObj.playerOneRoll > duelObj.playerTwoRoll){
+                    // playerOne wins   
+                    var messageToSend = "";
+                    room.sendNotification(duelObj.playerOne + " wins the duel! Anyone who betted on the winner gets their amount back + portion of the bets placed on the loser.");
+                    var totalBets = duelObj.playerTwoTotalBets;
+                    var portion = totalBets / duelObj.playerOneBetters.length;
+                    messageToSend += "Total amounts of the pool is " + totalBets + ", split " + duelObj.playerOneBetters.length + " ways.\n"
+                    for ( var i = 0; i < duelObj.playerOneBetters.length; i++){
+                        var totalWon = duelObj.playerOneBettersBets[i] + portion;
+                        messageToSend += duelObj.playerOneBetters[i] + " has won " + totalWon.toString() + "\n";
+                        var user = store[getIdFromName(self, duelObj.playerOneBetters[i],store)];
+                        user.main[5] += totalWon;
+                        updatePlayer(user, self, getIdFromName(self,duelObj.playerOneBetters[i], store));
+                    }
+
+                }else if (duelObj.playerTwoRoll > duelObj.playerOneRoll){
+                    // playertwo wins
+                    room.sendNotification(duelObj.playerTwo + " wins the duel!");
+                    var messageToSend = "";
+                    room.sendNotification(duelObj.playerTwo + " wins the duel! Anyone who betted on the winner gets their amount back + portion of the bets placed on the loser.");
+                    var totalBets = duelObj.playerOneTotalBets;
+                    var portion = totalBets / duelObj.playerTwoBetters.length;
+                    messageToSend += "Total amounts of the pool is " + totalBets + ", split " + duelObj.playerTwoBetters.length + " ways.\n"
+
+                    for ( var i = 0; i < duelObj.playerTwoBetters.length; i++){
+                        var totalWon = duelObj.playerTwoBettersBets[i] + portion;
+                        messageToSend += duelObj.playerTwoBetters[i] + " has won " + totalWon.toString() + "\n";
+                        var user = store[getIdFromName(self, duelObj.playerTwoBetters[i], store)];
+                        user.main[5] += totalWon;
+                        updatePlayer(user, self, getIdFromName(self, duelObj.playerTwoBetters[i], store));
+                    }
+                    printMessage(messageToSend, "yellow", room, "text");
+
+                }
+                alreadyattacking = false;
+                    duelObj = new duelObject();
+            }
+        }
+        duelObj.store = yield this.tenantStore.all(100000);
+        duelObj.duelBetTimer = setTimeout(bettingFunction, 30000, this.roomClient, rollingFunction, this, duelObj.store);
+    return;
+
     }else{
         return yield printMessage("/duel start|bet playername", "yellow", this.roomClient, "text");
     }
@@ -480,9 +524,7 @@ addon.webhook('room_message', /^[^\/].*|^\/farm|^\/help|^\/ping|^\/profile\s*([a
         yield printMessage("@" +this.sender.mention_name+" is ready.", "yellow", this.roomClient, "text");
         return;
     }
-    if (alreadyattacking) {
-        return;
-    }  
+
     var room = this.roomClient;
     var matchString = this.match;
     var senderName = this.sender.name
@@ -525,23 +567,28 @@ addon.webhook('room_message', /^[^\/].*|^\/farm|^\/help|^\/ping|^\/profile\s*([a
         }, 600000, this.roomClient, gTarget)
 
     }
-    if (matchString[1] == "nick"){
-        if (!matchString[2]){
-            getUser.profile[1] = "";
+    if (matchString[0].startsWith("/profile")){
+        if (matchString[1] == "nick"){
+            if (!matchString[2]){
+                getUser.profile[1] = "";
+                updatePlayer(getUser, this, senderId);
+                return yield printMessage("@" + senderMentionName + "'s character nickname has been updated.", "green", this.roomClient, "text");
+            }
+            var nickName = escape(matchString[2].replace(" ", ""));
+            if (nickName.length > 16){
+                return yield printMessage("Name too long! Must be shorter than 15 characters.", "red", this.roomClient, "text");
+            }else if (nickName == "" ){
+                return yield printMessage("Name too short! Must be at least 1 character.", "red", this.roomClient, "text");
+            }
+            getUser.profile[1] = nickName;
             updatePlayer(getUser, this, senderId);
             return yield printMessage("@" + senderMentionName + "'s character nickname has been updated.", "green", this.roomClient, "text");
-        }
-        var nickName = escape(matchString[2].replace(" ", ""));
-        if (nickName.length > 16){
-            return yield printMessage("Name too long! Must be shorter than 15 characters.", "red", this.roomClient, "text");
-        }else if (nickName == "" ){
-            return yield printMessage("Name too short! Must be at least 1 character.", "red", this.roomClient, "text");
-        }
-        getUser.profile[1] = nickName;
-        updatePlayer(getUser, this, senderId);
-        return yield printMessage("@" + senderMentionName + "'s character nickname has been updated.", "green", this.roomClient, "text");
 
+        }
     }
+    if (alreadyattacking) {
+        return;
+    }  
     var trigger = false;
     if ((matchString[0] == "/farm") && (globalEnc == 21) && (senderMentionName == gTarget.name)){
         logToFile("In /farm");
@@ -584,7 +631,7 @@ addon.webhook('room_message', /^[^\/].*|^\/farm|^\/help|^\/ping|^\/profile\s*([a
                 gainHP = 1;
             }
             logToFile("GainHp Boss: " + gainHP);
-            amountofExp = Math.floor(randFromRange(10,20)*levelofMob);
+            amountofExp = Math.floor(randFromRange(50,100)*levelofMob);
             monsterGoldDrop = randFromRange(levelofMob/2,levelofMob) * 2;
             monsterType = typesOfMonsters[Math.floor(Math.random() * typesOfMonsters.length)];
             monsterfoodDrop = foodDrops[Math.floor(Math.random() * foodDrops.length)];
@@ -676,7 +723,7 @@ addon.webhook('room_message', /^[^\/].*|^\/farm|^\/help|^\/ping|^\/profile\s*([a
                     }
                     logToFile("Boss Monster end");
                     underattack = "";
-                    monsterGracePeriodTmr = setTimeout(monsterGracePeriod, 30000);
+                    monsterGracePeriodTmr = setTimeout(monsterGracePeriod, 60000);
                     trigger = false
 
             }
@@ -759,15 +806,16 @@ addon.webhook('room_message', /^\/stats\s*([\S]*)$/i, function  * () {
             var tempPlayerClass = tempPlayerArray.classInfo
             var tempPlayerProfile = tempPlayerArray.profile
             var nameToUse = getNameToUse(tempPlayerProfile);
-            yield printMessage("<b>" + nameToUse + "</b> stats | " 
+            printString += "<b>" + nameToUse + "</b> stats | " 
                 + tempPlayerClass[0] + " | <b>hp:</b> " 
                 + tempPlayerStats[0].toString() + " | <b>Level:</b> " 
                 + tempPlayerStats[4] + " | <b>EXP:</b> " + tempPlayerStats[3] 
                 + " | <b>pepper:</b> " + tempPlayerStats[1].toString()
-                + " | <b>gold:</b> " + tempPlayerStats[5].toString(), "yellow", this.roomClient, "html");
+                + " | <b>gold:</b> " + tempPlayerStats[5].toString() + "<br>";
 
 
         }
+        yield printMessage(printString, "yellow", this.roomClient, "html");
             statsTimer = setTimeout(function (room) {
                 logToFile("stats all is ready");
                 stats_process = false;
@@ -1181,7 +1229,7 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
     logToFile("In /roll initplayer)");
     getUser = initPlayer(getUser, this, senderId, senderName);
     var senderMentionName = getNameToUse(getUser.profile);
-	alreadyrolling = senderName;
+	alreadyrolling = true;;
 	var numofvars = matchString;
 	var numofdice = matchString[1];
 	var numofsides = matchString[2];
@@ -1204,6 +1252,28 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
 	} else if (matchString[1] && matchString[2] || !matchString[1] && !matchString[2] && !matchString[3]) {
 		var totalString = "";
 		var total = 0;
+        logToFile("duel roll? " +(senderName == duelObj.playerOne || senderName == duelObj.playerTwo ))
+         logToFile("duel roll? " + duelObj.attackingphase)
+        if (duelObj.attackingphase && (senderName == duelObj.playerOne || senderName == duelObj.playerTwo)){
+            if ((senderName == duelObj.playerOne) && duelObj.playerOneRoll != 0 || (senderName == duelObj.playerTwo) && duelObj.playerTwoRoll != 0){
+                alreadyrolling = false;
+              return;  
+            }
+            seasonMod = 0;
+            numofdice = 1;
+            numofsides = 20;
+            var diceRoll = rollDice(parseInt(numofdice),parseInt(numofsides), parseInt(seasonMod));
+            totalString = formatRoll(numofdice, numofsides, seasonMod, diceRoll, senderName)
+            total = parseInt(diceRoll[0]);
+            yield printMessage("Dueling roll: " + totalString, "purple", this.roomClient, "text");
+            if (duelObj.playerOne == senderName){
+                duelObj.playerOneRoll = total;
+            }else{
+                duelObj.playerTwoRoll = total;
+            }
+            alreadyrolling = false;
+            return;
+        }
 
         if (isBossFight && (!matchString[1] && !matchString[2] && !matchString[3])){
 
@@ -1262,7 +1332,7 @@ addon.webhook('room_message', /^\/roll\s*([0-9]+)?(?:d([0-9]+))?(?:\s*\+\s*([0-9
             if (isInArray("Shiny spatula", inventory) && senderName == underattack){
                 itemMod = Math.ceil(seasonMod * .20);
                 seasonMod += itemMod;
-                yield printMessage(senderMentionName + " increases the seasoning mod to " + seasonMod.toString() + " from " + (seasonMod -itemMod).toString(), "purple", this.roomClient, "text");
+                //yield printMessage(senderMentionName + " increases the seasoning mod to " + seasonMod.toString() + " from " + (seasonMod -itemMod).toString(), "purple", this.roomClient, "text");
             }
 			numofdice = 1;
 			numofsides = 20;
@@ -1527,8 +1597,10 @@ function initPlayer(playername, self, id, name) {
     if (playername){
     logToFile("USER DOES EXIST: " + playername.profile[0])
     if (isBossFight){
-        logToFile("Returning bossStore: " + bossMonsterParty.store[id].main[2].toString());
         return bossMonsterParty.store[id];
+    }
+    if (duelObj.status){
+        return duelObj.store[id];
     }
     return playername;
     }
@@ -1667,6 +1739,26 @@ function goldTopScore(senderName, gold, room){
     }
 
 }
+function duelObject(store){
+    this.status = false,
+    this.waitingForAccept = false,
+    this.playerOne = "",
+    this.playerOneRoll = 0,
+    this.playerOneBetters = [],
+    this.playerOneBettersBets = [],
+    this.playerOneTotalBets = 0,
+    this.playerTwo = "",
+    this.playerTwoRoll = 0,
+    this.playerTwoBetters = [],
+    this.playerTwoBettersBets = [],
+    this.playerTwoTotalBets = 0,
+    this.bettingPhase = false,
+    this.attackingphase = false,
+    this.duelBetTimer = 0,
+    this.duelRollTimer = 0,
+    this.duelAcceptTimer = 0,
+    this.store = store
+}
 function classCast(playername, roomClient, playerObject, id, self, glbStore){
 
     logToFile("GainHP in classCast: " + gainHP.toString());
@@ -1732,7 +1824,7 @@ function classCast(playername, roomClient, playerObject, id, self, glbStore){
                 break;
             case "Princess":
                 if (chooseAbility ==1){
-                    var princessPower = randFromRange(0, parseInt(getUser.main[4])/2);
+                    var princessPower = randFromRange(1, parseInt(getUser.main[4])/2);
                     printMessage(nickName + " waves around the magical <b>cinnamon stick</b> and produced <b>" + princessPower.toString() + " peppers </b>.", "random", roomClient, "html");
                     getUser.main[1] += princessPower;
 
