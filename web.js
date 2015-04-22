@@ -120,12 +120,16 @@ addon.webhook('room_message', /^\/shop\s*([a-z]+)?\s*([a-z]+)?\s*([0-9]+)?/i, fu
     shop_process = true;
     if (matchString[1] != "buy" || !matchString[2] ){
         printMessage("Buy and use an item automatically with /shop buy itemname.", "green", this.roomClient);
-        printMessage("HealthPotion - 15g | Pepper - 5g | Bayleaf - 5g | Dueltoken - 20g", "green", this.roomClient);
+        printMessage("HealthPotion - 15g | Pepper - 5g | Bayleaf - 5g | Pepperseed - 5g", "green", this.roomClient);
         shop_process = false;
         return;
     }
     var buyingItem = matchString[2];
     // just gonna have a static shop for now
+    if (getUser == "undefined"){
+        logToFile("UNDEFINED")
+        getUser = initPlayer(getUser, this, senderId, senderName);
+    }
     var stats = getUser.main
     var playerGold = parseInt(stats[5]);
     var playerClass = getUser.classInfo
@@ -178,17 +182,22 @@ addon.webhook('room_message', /^\/shop\s*([a-z]+)?\s*([a-z]+)?\s*([0-9]+)?/i, fu
             shop_process = false;
             return yield printMessage("Bay leaf bought and stored.", "green", this.roomClient);  
         }
-    }else if (matchString[2] == "dualtoken"){
+    }else if (matchString[2] == "pepperseed"){
         if (20 > playerGold) {
             shop_process = false;
             return yield printMessage("Not enough gold.", "green", this.roomClient);
+        }else if (playerClass[0] != "Princess"){
+            shop_process = false;
+            return yield printMessage("Only the princess can buy pepper seeds.", "green", this.roomClient);
+
+        
         }else{
-            stats[5] -= 20;
-            inventory.push("dualtoken");
+            stats[5] -= 5;
+            inventory.push("Pepperseed");
             getUser.inventory = inventory;
             updatePlayer(getUser, this, senderId)
             shop_process = false;
-            return yield printMessage("Dualtoken bought and stored in inventory.", "green", this.roomClient); 
+            return yield printMessage("Pepperseed bought and stored in inventory.", "green", this.roomClient); 
         }
 
     }else{
@@ -324,7 +333,7 @@ addon.webhook('room_message', /^\/duel*\s*([a-z]+)\s*([a-z\s]*)\s*([0-9]*)$/i, f
                 return yield printMessage("Need to specify player to bet on.", "yellow", this.roomClient, "text");
             }else if (!isNumeric(matchString[3])){
                 return yield printMessage("Need to specify a proper number", "yellow", this.roomClient, "text");
-            }else if ( matchString[2] != duelObj.playerOne && matchString[2] != duelObj.playerTwo){
+            }else if (getFullNameFromPartial(matchString[2],store) != duelObj.playerOne && getFullNameFromPartial(matchString[2],store) != duelObj.playerTwo){
                 logToFile("match String and player one " + ((matchString[2] != duelObj.playerOne)||(matchString[2] != duelObj.playerTwo)));
                 return yield printMessage("Need to bet on a dueler.", "yellow", this.roomClient, "text");
             }else{
@@ -332,9 +341,10 @@ addon.webhook('room_message', /^\/duel*\s*([a-z]+)\s*([a-z\s]*)\s*([0-9]*)$/i, f
                 if (betAmount > getUser.main[5]){
                     return yield printMessage("Don't have enough gold to bet that amount!", "yellow", this.roomClient, "text");
                 }
+                var targetBet = getFullNameFromPartial(matchString[2],store);
                 getUser.main[5] -= betAmount;
                 updatePlayer(getUser, this, senderId)
-                if (matchString[2] == duelObj.playerOne){
+                if (targetBet == duelObj.playerOne){
                     duelObj.playerOneBetters.push(senderName);
                     duelObj.playerOneBettersBets.push(betAmount);      
                     duelObj.playerOneTotalBets += betAmount;       
@@ -344,7 +354,7 @@ addon.webhook('room_message', /^\/duel*\s*([a-z]+)\s*([a-z\s]*)\s*([0-9]*)$/i, f
                     duelObj.playerTwoTotalBets += betAmount;       
                 }
 
-                return yield printMessage(senderName + " has put down a bet of " + betAmount.toString() + " on " + matchString[2]+".", "yellow", this.roomClient, "text");
+                return yield printMessage(senderName + " has put down a bet of " + betAmount.toString() + " on " + targetBet +".", "yellow", this.roomClient, "text");
             }
 
             return;
@@ -355,18 +365,19 @@ addon.webhook('room_message', /^\/duel*\s*([a-z]+)\s*([a-z\s]*)\s*([0-9]*)$/i, f
         }else{
             if (matchString[2] == ""){
                 return yield printMessage("Need to specify player to duel", "yellow", this.roomClient, "text");
-            } else if (getIdFromName(this,matchString[2],store) == -1){
+            } else if (getIdFromName(this,getFullNameFromPartial(matchString[2],store),store) == -1){
                 return yield printMessage("Player doesn't exist.", "yellow", this.roomClient, "text");
-            } else if (senderName == matchString[2]){
+            } else if (senderName == getFullNameFromPartial(matchString[2],store)){
                 return yield printMessage("Can't challenge yourself!", "yellow", this.roomClient, "text");
             
             } else {
+                var duelTarget = getFullNameFromPartial(matchString[2],store);
                 duelObj = new duelObject(store);
                 duelObj.status = true;
                 duelObj.waitingForAccept = true;
                 alreadyattacking = true;
                 duelObj.playerOne = senderName;
-                duelObj.playerTwo = matchString[2];
+                duelObj.playerTwo = duelTarget;
                 // TODO: PlayerTwo must accept
                 yield printMessage("Waiting 1 minute for " + duelObj.playerTwo +" to accept. Must type /duel accept", "green", this.roomClient, "text")
                 var waitingDuel = function (room){
@@ -398,8 +409,24 @@ addon.webhook('room_message', /^\/duel*\s*([a-z]+)\s*([a-z\s]*)\s*([0-9]*)$/i, f
             var store = duelObj.store;
             if (duelObj.playerOneRoll == 0 && duelObj.playerTwoRoll == 0 ){
                 room.sendNotification("No one rolled, cancelling duel.");
+                 var messageToSend = "";
+                    for ( var i = 0; i < duelObj.playerTwoBetters.length; i++){
+                        var totalWon = duelObj.playerTwoBettersBets[i]
+                        messageToSend += duelObj.playerTwoBetters[i] + " has won " + totalWon.toString() + "gold. \n";
+                        var user = store[getIdFromName(self, duelObj.playerTwoBetters[i], store)];
+                        user.main[5] += totalWon;
+                        updatePlayer(user, self, getIdFromName(self, duelObj.playerTwoBetters[i], store));
+                    }
+                    for ( var i = 0; i < duelObj.playerOneBetters.length; i++){
+                        var totalWon = duelObj.playerOneBettersBets[i]
+                        messageToSend += duelObj.playerOneBetters[i] + " has won " + totalWon.toString() + "gold. \n";
+                        var user = store[getIdFromName(self, duelObj.playerOneBetters[i],store)];
+                        user.main[5] += totalWon;
+                        updatePlayer(user, self, getIdFromName(self,duelObj.playerOneBetters[i], store));
+                    }
+                    printMessage(messageToSend, "yellow", room, "text");
                 alreadyattacking = false;
-                    duelObj = new duelObject();
+                duelObj = new duelObject();
             }else{
                 if (duelObj.playerOneRoll > duelObj.playerTwoRoll){
                     // playerOne wins   
@@ -574,7 +601,7 @@ addon.webhook('room_message', /^[^\/].*|^\/farm|^\/help|^\/ping|^\/profile\s*([a
                 logToFile("Rand is currently: " + rand.toString());
                 logToFile("ArraySze is currently: " + gMonsterChance.length.toString());
                 gTarget.name = gMonsterChance[rand];
-                if (gTarget.name != "undefined"){
+                if (gTarget.name){
                     logToFile("Target is currently: " + gTarget.name);
                     printMessage("@"+gTarget.name + " hears something rustle in the tall grass...poke ball ready...", "purple", roomC, "text");
                     globalEnc = 21;
@@ -831,10 +858,11 @@ addon.webhook('room_message', /^\/stats\s*([\S]*)$/i, function  * () {
             var tempPlayerStats = tempPlayerArray.main;
             var tempPlayerClass = tempPlayerArray.classInfo
             var tempPlayerProfile = tempPlayerArray.profile
+            var tempPlayerMaxHp = getMaxHp(tempPlayerArray);
             var nameToUse = getNameToUse(tempPlayerProfile);
             printString += "<b>" + nameToUse + "</b> stats | " 
                 + tempPlayerClass[0] + " | <b>hp:</b> " 
-                + tempPlayerStats[0].toString() + " | <b>Level:</b> " 
+                + tempPlayerStats[0].toString() + "/"+tempPlayerMaxHp.toString()+" | <b>Level:</b> " 
                 + tempPlayerStats[4] + " | <b>EXP:</b> " + tempPlayerStats[3] 
                 + " | <b>pepper:</b> " + tempPlayerStats[1].toString()
                 + " | <b>gold:</b> " + tempPlayerStats[5].toString() + "<br>";
@@ -1158,20 +1186,20 @@ addon.webhook('room_message', /^\/stats\s*([\S]*)$/i, function  * () {
 
     var getUser = yield this.tenantStore.get(senderId)
     getUser = initPlayer(getUser, this, senderId, senderName);
-
+    var maxHp = getMaxHp(getUser);
 	stats = getUser.main;
 	pclass = getUser.classInfo;
     profile = getUser.profile;
-
+    var nextLevelExp = getExpTillNextLevel(stats[3]);
     if (senderName == "Josh Elsasser"){
         var tableString = "<table><tr><th>"+senderMentionName + ":</th><th>Hunker</th><th>Hunker</th><th>Hunker</th><th>Hunker</th><th>Hunker</th><th>Hunker</th><th>Hunker</th></tr>" +
-            "<tr><td>" +profile[1] +"</td><td>" +pclass[0]+"</td><td>"+stats[0].toString()+"</td><td>"+stats[4]+"</td><td>"+stats[3]+"</td><td>"+stats[1]+"</td><td>"+stats[2].toString()+"(+" +pclass[3].toString()+")</td><td>"+stats[5].toString()+"</td></tr></table>";
+            "<tr><td>" +profile[1] +"</td><td>" +pclass[0]+"</td><td>"+stats[0].toString()+"/"+maxHp.toString()+"</td><td>"+stats[4]+"</td><td>"+stats[3]+"</td><td>"+stats[1]+"</td><td>"+stats[2].toString()+"(+" +pclass[3].toString()+")</td><td>"+stats[5].toString()+"</td></tr></table>";
 
         yield printMessage(tableString, "green", this.roomClient, "html");
 
     }else{
         var tableString = "<table><tr><th>"+senderMentionName + ":</th><th>Class</th><th>HP</th><th>Level</th><th>EXP</th><th>Pepper</th><th>Seasoning</th><th>Gold</th></tr>" +
-            "<tr><td>" +profile[1] +"</td><td>" +pclass[0]+"</td><td>"+stats[0].toString()+"</td><td>"+stats[4]+"</td><td>"+stats[3]+"</td><td>"+stats[1]+"</td><td>"+stats[2].toString()+"(+" +pclass[3].toString()+")</td><td>"+stats[5].toString()+"</td></tr></table>";
+            "<tr><td>" +profile[1] +"</td><td>" +pclass[0]+"</td><td>"+stats[0].toString()+"/"+maxHp.toString()+"</td><td>"+stats[4]+"</td><td>"+stats[3]+"</td><td>"+stats[1]+"</td><td>"+stats[2].toString()+"(+" +pclass[3].toString()+")</td><td>"+stats[5].toString()+"</td></tr></table>";
 
         yield printMessage(tableString, "green", this.roomClient, "html");
     }
@@ -1590,15 +1618,10 @@ function randFromRange (low, high) {
     return roll;
 }
 
-function getMaxHp(playerObject, self, id){
+function getMaxHp(playerObject){
     var currentLevel = playerObject.main[4] +1;
     var baseHp = Math.ceil(((currentLevel/2) * 8) *5);
-    if (playerObject.main[0] > baseHp){
-       // playerObject.main[0] = baseHp;
-       // updatePlayer(playerObject, self, id);
-        logToFile("Updated player hp: " + baseHp);
-    }
-    return playerObject;
+    return baseHp;
 
 }
 
@@ -1612,6 +1635,15 @@ function setHp(self, playerObject, id, hpToSet){
         return updatePlayer(playerObject, self, id);
     }
 
+}
+
+function getFullNameFromPartial(partialName, store){
+    for (var i in store){
+        if (store[i].profile[0].toLowerCase().startsWith(partialName.toLowerCase())){
+            return store[i].profile[0]
+        }
+    }
+    return "";
 }
 // HIPCHAT FUNCTIONS
 // =================
@@ -1670,7 +1702,7 @@ function updatePlayer(playerObject, self, id){
     if (isBossFight){
         logToFile("Saving to bossStore");
         bossMonsterParty.store[id] = playerObject;
-        return;
+        return playerObject;
     }
     var self = self;
     logToFile("Updating db: " + playerObject.toString())
@@ -1699,6 +1731,10 @@ function getIdFromName(self, name, store){
     return -1
 }
 
+function getExpTillNextLevel(currentExp){
+    var level = Math.floor(Math.pow((parseInt(currentExp+1) / 20),(1/1.75)));
+    return level;
+}
 function calcLevel(currentExp){
     // LEVEL SCALING
     var level = Math.floor(Math.pow((parseInt(currentExp) / 20),(1/1.75)));
@@ -1847,6 +1883,7 @@ function classCast(playername, roomClient, playerObject, id, self, glbStore){
                     logToFile("targetStats after heal: " + targetStats.toString())
                     targetMainArray.main = targetStats;
                     updatePlayer(targetMainArray, self, targetId)
+
                 } else if (chooseAbility == 2 && !isBossFight){
                     var atkRoll = Math.ceil(randFromRange(getUser.main[4]/2, getUser.main[4]));
                     printMessage(nickName + " casted <b>antithesis</b> and lowered the hp of the mob by <b>" + atkRoll.toString() + "</b>.", "random", roomClient, "html");
@@ -1872,7 +1909,7 @@ function classCast(playername, roomClient, playerObject, id, self, glbStore){
                 break;
             case "Princess":
                 if (chooseAbility ==1){
-                    var princessPower = randFromRange(1, parseInt(getUser.main[4])/2);
+                    var princessPower = randFromRange(parseInt(Math.floor(getUser.main[4])/4), parseInt(Math.floor(getUser.main[4])/2));
                     printMessage(nickName + " waves around the magical <b>cinnamon stick</b> and produced <b>" + princessPower.toString() + " peppers </b>.", "random", roomClient, "html");
                     getUser.main[1] += princessPower;
 
